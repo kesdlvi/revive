@@ -1,6 +1,7 @@
 import { PhotoBottomSheet } from '@/components/PhotoBottomSheet';
 import { PreviewOverlay } from '@/components/PreviewOverlay';
 import { ScanFrame } from '@/components/ScanFrame';
+import { analyzeFurniture } from '@/services/openai';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams } from 'expo-router';
@@ -34,6 +35,9 @@ export default function SwipeScreen() {
   const cameraRef = useRef<CameraView>(null);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [furnitureAnalysis, setFurnitureAnalysis] = useState<any>(null);
+  const [currentPhotoUri, setCurrentPhotoUri] = useState<string | null>(null);
 
   const translateX = useRef(new Animated.Value(initialView)).current; // 0 = camera, -width = feed
   const lastX = useRef(initialView);
@@ -112,10 +116,45 @@ export default function SwipeScreen() {
         // @ts-ignore - takePictureAsync exists on CameraView
         const photo = await cameraRef.current.takePictureAsync();
         setPreviewUri(photo.uri);
+        setCurrentPhotoUri(photo.uri);
         setShowPhotoSheet(true);
+        
+        // Analyze the furniture (start with simple mode only)
+        setIsAnalyzing(true);
+        try {
+          // Start with simple identification only (saves cost)
+          const simpleResult = await analyzeFurniture(photo.uri, 'simple');
+          setFurnitureAnalysis(simpleResult);
+        } catch (error: any) {
+          console.error('Analysis error:', error);
+          const errorMessage = error?.message || 'Failed to analyze furniture';
+          Alert.alert(
+            'Analysis Error',
+            errorMessage + '\n\nShowing photo anyway.',
+            [{ text: 'OK' }]
+          );
+        } finally {
+          setIsAnalyzing(false);
+        }
       } catch {
         Alert.alert('Error', 'Failed to take picture');
       }
+    }
+  };
+
+  const handleRequestDetailedAnalysis = async () => {
+    if (!currentPhotoUri) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const detailedResult = await analyzeFurniture(currentPhotoUri, 'detailed');
+      setFurnitureAnalysis(detailedResult);
+    } catch (error: any) {
+      console.error('Detailed analysis error:', error);
+      const errorMessage = error?.message || 'Failed to get detailed analysis';
+      Alert.alert('Analysis Error', errorMessage);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -177,6 +216,8 @@ export default function SwipeScreen() {
                 onClose={() => {
                   setPreviewUri(null);
                   setShowPhotoSheet(false);
+                  setFurnitureAnalysis(null);
+                  setCurrentPhotoUri(null);
                 }}
               />
             ) : null}
@@ -185,8 +226,15 @@ export default function SwipeScreen() {
           {/* Photo Bottom Sheet */}
           {showPhotoSheet && (
             <PhotoBottomSheet
-              onClose={() => setShowPhotoSheet(false)}
+              onClose={() => {
+                setShowPhotoSheet(false);
+                setFurnitureAnalysis(null);
+                setCurrentPhotoUri(null);
+              }}
               samplePhotos={samplePhotos}
+              furnitureAnalysis={furnitureAnalysis}
+              isAnalyzing={isAnalyzing}
+              onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
             />
           )}
         </View>
