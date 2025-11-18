@@ -49,6 +49,7 @@ export default function SwipeScreen() {
   const [activeView, setActiveView] = useState<ViewType>(params.initial === 'feed' ? 'feed' : params.initial === 'profile' ? 'profile' : 'camera');
   const [lastView, setLastView] = useState<ViewType>('feed'); // Track last page before camera
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [activeProfileTab, setActiveProfileTab] = useState<'Created' | 'Saved'>('Created');
 
   const translateX = useRef(new Animated.Value(initialView)).current; // -width = feed (left), 0 = camera (middle), width = profile (right)
   const lastX = useRef(initialView);
@@ -408,21 +409,43 @@ export default function SwipeScreen() {
         {/* Profile Pane (Right) */}
         <Animated.View style={[styles.pane, { transform: [{ translateY: profileTranslateY }] }]}>
           <View style={styles.profileContainer}>
-            <View style={styles.profileHeader}>
-              <Text style={styles.profileTitle}>Profile</Text>
+            {/* Edit Button */}
+            <View style={styles.profileTopBar}>
+              <View style={{ width: 44 }} />
+              <TouchableOpacity style={styles.editButton}>
+                <Ionicons name="pencil" size={20} color="#FFF" />
+              </TouchableOpacity>
             </View>
+        
             <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.profileContent}>
               <View style={styles.profileAvatarContainer}>
                 <View style={styles.profileAvatar}>
                   <Ionicons name="person" size={60} color="#666" />
                 </View>
                 <Text style={styles.profileName}>Your Name</Text>
-                <Text style={styles.profileUsername}>@username</Text>
+          
               </View>
               <View style={styles.profileSection}>
-                <Text style={styles.sectionTitle}>My Posts</Text>
-                <Text style={styles.emptyText}>No posts yet</Text>
-            </View>
+                <TouchableOpacity 
+                  style={styles.profileTab}
+                  onPress={() => setActiveProfileTab('Created')}
+                >
+                  <Text style={[styles.sectionTitle, activeProfileTab === 'Created' && styles.activeSectionTitle]}>
+                    Created
+                  </Text>
+                  {activeProfileTab === 'Created' && <View style={styles.tabUnderline} />}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.profileTab}
+                  onPress={() => setActiveProfileTab('Saved')}
+                >
+                  <Text style={[styles.sectionTitle, activeProfileTab === 'Saved' && styles.activeSectionTitle]}>
+                    Saved
+                  </Text>
+                  {activeProfileTab === 'Saved' && <View style={styles.tabUnderline} />}
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.emptyText}>No posts yet</Text>
           </ScrollView>
         </View>
           
@@ -614,6 +637,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  profileTopBar: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  editButton: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   profileHeader: {
     paddingTop: 60,
     paddingHorizontal: 20,
@@ -628,6 +667,7 @@ const styles = StyleSheet.create({
   },
   profileContent: {
     padding: 20,
+    paddingTop: 120, // Add top padding to move content down
   },
   profileAvatarContainer: {
     alignItems: 'center',
@@ -654,12 +694,31 @@ const styles = StyleSheet.create({
   },
   profileSection: {
     marginTop: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 40,
+  },
+  profileTab: {
+    alignItems: 'center',
+    paddingBottom: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: '#999',
+    marginBottom: 4,
+  },
+  activeSectionTitle: {
     color: '#FFF',
-    marginBottom: 12,
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#FFF',
   },
   emptyText: {
     fontSize: 14,
