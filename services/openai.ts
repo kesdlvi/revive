@@ -156,3 +156,31 @@ export async function analyzeFurniture(
   }
 }
 
+/**
+ * Generate embedding from furniture analysis
+ * Used for similarity search
+ */
+export async function generateEmbedding(
+  analysis: { item?: string; style?: string; material?: string; description?: string }
+): Promise<number[]> {
+  try {
+    // Create descriptive text from analysis
+    const text = `${analysis.item || ''} ${analysis.style || ''} ${analysis.material || ''} ${analysis.description || ''}`.trim();
+    
+    if (!text) {
+      throw new Error('Cannot generate embedding from empty analysis');
+    }
+
+    // Use OpenAI embeddings API to generate vector
+    const response = await openai.embeddings.create({
+      model: 'text-embedding-3-small', // Cost-effective embedding model
+      input: text,
+    });
+
+    return response.data[0].embedding;
+  } catch (error: any) {
+    console.error('Error generating embedding:', error);
+    throw new Error(`Failed to generate embedding: ${error?.message || error}`);
+  }
+}
+

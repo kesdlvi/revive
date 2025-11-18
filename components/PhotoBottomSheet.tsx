@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -18,49 +19,27 @@ interface PhotoBottomSheetProps {
   onRequestDetailedAnalysis?: () => void;
 }
 
-type TabType = 'Inspo' | 'Community' | 'Revive';
+type TabType = 'Inspo' | 'Revive';
 
 /**
  * Bottom sheet that slides up from the bottom showing photos in tabs.
- * Features three tabs (Inspo, Community, Revive) with Pinterest-style masonry layout.
+ * Features two tabs (Inspo, Revive) with Pinterest-style masonry layout.
  * Can be dragged up to expand, but cannot be dismissed by dragging down.
  */
 export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis }: PhotoBottomSheetProps) {
   const [activeTab, setActiveTab] = useState<TabType>('Inspo');
 
-  // Calculate columns separately for Inspo and Community tabs only
-  // This prevents recalculation when switching to/from Revive tab
-  const inspoPhotos = useMemo(() => samplePhotos, [samplePhotos]);
-  const communityPhotos = useMemo(() => {
-    return samplePhotos.map((p, i) => ({ ...p, id: p.id + 100, uri: `https://picsum.photos/300/${p.height}?random=${p.id + 20}` }));
-  }, [samplePhotos]);
-
+  // Calculate columns for Inspo tab
   const inspoColumns = useMemo(() => {
     const left: Photo[] = [];
     const right: Photo[] = [];
     let lh = 0;
     let rh = 0;
-    inspoPhotos.forEach(p => {
+    samplePhotos.forEach(p => {
       if (lh <= rh) { left.push(p); lh += p.height; } else { right.push(p); rh += p.height; }
     });
     return { left, right };
-  }, [inspoPhotos]);
-
-  const communityColumns = useMemo(() => {
-    const left: Photo[] = [];
-    const right: Photo[] = [];
-    let lh = 0;
-    let rh = 0;
-    communityPhotos.forEach(p => {
-      if (lh <= rh) { left.push(p); lh += p.height; } else { right.push(p); rh += p.height; }
-    });
-    return { left, right };
-  }, [communityPhotos]);
-
-  // Select columns based on active tab - memoized to prevent unnecessary re-renders
-  const columns = useMemo(() => {
-    return activeTab === 'Community' ? communityColumns : inspoColumns;
-  }, [activeTab, communityColumns, inspoColumns]);
+  }, [samplePhotos]);
   
   const INITIAL_HEIGHT = height * 0.45; // 45% from bottom
   const MAX_HEIGHT = height * 0.95; // Can slide up to 95% of screen
@@ -173,12 +152,6 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
               <Text style={[styles.tabText, activeTab === 'Inspo' && styles.activeTabText]}>Inspo</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'Community' && styles.activeTab]}
-              onPress={() => setActiveTab('Community')}
-            >
-              <Text style={[styles.tabText, activeTab === 'Community' && styles.activeTabText]}>Community</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.tab, activeTab === 'Revive' && styles.activeTab]}
               onPress={() => setActiveTab('Revive')}
             >
@@ -276,7 +249,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
           </View>
         </ScrollView>
         
-        {/* Pinterest-style masonry layout for Inspo and Community tabs */}
+        {/* Pinterest-style masonry layout for Inspo tab */}
         <ScrollView
           style={[styles.photoGridContainer, activeTab === 'Revive' && styles.hidden]}
           showsVerticalScrollIndicator={false}
@@ -284,24 +257,30 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
         >
           <View style={styles.masonryContainer}>
             <View style={styles.column}>
-              {columns.left.map(photo => (
+              {inspoColumns.left.map(photo => (
                 <View key={photo.id} style={styles.photoCard}>
                   <Image 
                     source={{ uri: photo.uri }} 
                     style={[styles.photo, { height: photo.height }]} 
                     resizeMode="cover"
                   />
+                  <TouchableOpacity style={styles.savedButton}>
+                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
             <View style={styles.column}>
-              {columns.right.map(photo => (
+              {inspoColumns.right.map(photo => (
                 <View key={photo.id} style={styles.photoCard}>
                   <Image 
                     source={{ uri: photo.uri }} 
                     style={[styles.photo, { height: photo.height }]} 
                     resizeMode="cover"
                   />
+                  <TouchableOpacity style={styles.savedButton}>
+                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                  </TouchableOpacity>
                 </View>
               ))}
             </View>
@@ -318,7 +297,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#FFF',
+    backgroundColor: '#000',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000',
@@ -330,7 +309,7 @@ const styles = StyleSheet.create({
   dragHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#CCC',
+    backgroundColor: '#333',
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 8,
@@ -340,18 +319,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
+    borderBottomColor: '#333',
   },
   analysisContainer: {
     marginBottom: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#333',
   },
   analysisLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: '#999',
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -359,31 +338,31 @@ const styles = StyleSheet.create({
   analysisText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#FFF',
     marginBottom: 2,
   },
   analysisSubtext: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
     marginTop: 2,
   },
   repairNeededContainer: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#333',
   },
   repairLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: '#999',
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   repairItem: {
     fontSize: 14,
-    color: '#666',
+    color: '#CCC',
     marginTop: 2,
   },
   reviveContent: {
@@ -391,7 +370,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   revivePromptContainer: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
@@ -400,12 +379,12 @@ const styles = StyleSheet.create({
   reviveTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#000',
+    color: '#FFF',
     marginBottom: 8,
   },
   reviveDescription: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
     textAlign: 'center',
     marginBottom: 16,
     lineHeight: 20,
@@ -426,17 +405,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   detailedAnalysisContainer: {
-    backgroundColor: '#FFF',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
     padding: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#333',
   },
   detailedSectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000',
+    color: '#FFF',
     marginBottom: 16,
   },
   detailedSection: {
@@ -445,24 +424,26 @@ const styles = StyleSheet.create({
   detailedLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: '#999',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   detailedText: {
     fontSize: 15,
-    color: '#000',
+    color: '#FFF',
     lineHeight: 22,
   },
   searchQueryItem: {
     fontSize: 14,
-    color: '#333',
+    color: '#CCC',
     marginTop: 4,
     lineHeight: 20,
   },
   tabContainer: {
     flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 8,
     marginTop: 8,
   },
@@ -470,17 +451,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
   },
   activeTab: {
-    backgroundColor: '#F0F0F0',
+    borderBottomColor: '#FFF',
   },
   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#666',
+    color: '#999',
   },
   activeTabText: {
-    color: '#000',
+    color: '#FFF',
     fontWeight: '600',
   },
   photoGridContainer: {
@@ -499,16 +482,27 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'white',
+    backgroundColor: '#1A1A1A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
   photo: {
     width: '100%',
     borderRadius: 12,
+  },
+  savedButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   hidden: {
     opacity: 0,

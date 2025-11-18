@@ -9,12 +9,21 @@ export default function HomeScreen() {
     router.replace('/swipe?initial=feed');
   };
 
+  const navigateToTest = () => {
+    router.push('/test-supabase');
+  };
+
   return (
     <ThemedView style={styles.container}>
       <View style={styles.content}>
         <TouchableOpacity style={styles.primaryButton} onPress={navigateToFeed}>
           <Ionicons name="grid" size={24} color="white" />
           <ThemedText style={styles.buttonText}>Browse Feed</ThemedText>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.testButton} onPress={navigateToTest}>
+          <Ionicons name="flask" size={24} color="#007AFF" />
+          <ThemedText style={styles.testButtonText}>Test Supabase</ThemedText>
         </TouchableOpacity>
       </View>
     </ThemedView>
@@ -44,6 +53,24 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  testButton: {
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 16,
+  },
+  testButtonText: {
+    color: '#007AFF',
     fontSize: 16,
     fontWeight: '600',
   },

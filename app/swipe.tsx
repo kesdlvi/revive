@@ -6,30 +6,37 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 const { width, height } = Dimensions.get('window');
 const SWIPE_THRESHOLD = 50; // Lower threshold for easier swiping
 
 const samplePhotos = [
-  { id: 1, uri: 'https://picsum.photos/300/400?random=1', height: 400 },
-  { id: 2, uri: 'https://picsum.photos/300/300?random=2', height: 300 },
-  { id: 3, uri: 'https://picsum.photos/300/500?random=3', height: 500 },
-  { id: 4, uri: 'https://picsum.photos/300/350?random=4', height: 350 },
-  { id: 5, uri: 'https://picsum.photos/300/450?random=5', height: 450 },
-  { id: 6, uri: 'https://picsum.photos/300/320?random=6', height: 320 },
-  { id: 7, uri: 'https://picsum.photos/300/380?random=7', height: 380 },
-  { id: 8, uri: 'https://picsum.photos/300/420?random=8', height: 420 },
-  { id: 9, uri: 'https://picsum.photos/300/360?random=9', height: 360 },
-  { id: 10, uri: 'https://picsum.photos/300/480?random=10', height: 480 },
-  { id: 11, uri: 'https://picsum.photos/300/340?random=11', height: 340 },
-  { id: 12, uri: 'https://picsum.photos/300/410?random=12', height: 410 },
+  { id: 1, uri: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80', height: 400 },
+  { id: 2, uri: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80', height: 300 },
+  { id: 3, uri: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800&q=80', height: 500 },
+  { id: 4, uri: 'https://images.unsplash.com/photo-1551298370-9c4a0e0b1a0e?w=800&q=80', height: 350 },
+  { id: 5, uri: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=800&q=80', height: 450 },
+  { id: 6, uri: 'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=800&q=80', height: 320 },
+  { id: 7, uri: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&q=80', height: 380 },
+  { id: 8, uri: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80', height: 420 },
+  { id: 9, uri: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80', height: 360 },
+  { id: 10, uri: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800&q=80', height: 480 },
+  { id: 11, uri: 'https://images.unsplash.com/photo-1551298370-9c4a0e0b1a0e?w=800&q=80', height: 340 },
+  { id: 12, uri: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=800&q=80', height: 410 },
 ];
+
+type ViewType = 'feed' | 'camera' | 'profile';
 
 export default function SwipeScreen() {
   const params = useLocalSearchParams();
-  const initialView = params.initial === 'feed' ? -width : 0;
+  const getInitialView = () => {
+    if (params.initial === 'feed') return 0; // Feed is the first pane (leftmost)
+    if (params.initial === 'profile') return -width * 2; // Profile is the third pane (rightmost)
+    return -width; // Camera is the second pane (middle)
+  };
+  const initialView = getInitialView();
   
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -38,9 +45,18 @@ export default function SwipeScreen() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [furnitureAnalysis, setFurnitureAnalysis] = useState<any>(null);
   const [currentPhotoUri, setCurrentPhotoUri] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeView, setActiveView] = useState<ViewType>(params.initial === 'feed' ? 'feed' : params.initial === 'profile' ? 'profile' : 'camera');
+  const [lastView, setLastView] = useState<ViewType>('feed'); // Track last page before camera
+  const [flashEnabled, setFlashEnabled] = useState(false);
 
-  const translateX = useRef(new Animated.Value(initialView)).current; // 0 = camera, -width = feed
+  const translateX = useRef(new Animated.Value(initialView)).current; // -width = feed (left), 0 = camera (middle), width = profile (right)
   const lastX = useRef(initialView);
+  
+  // Animation values for page entrance effects
+  const feedTranslateY = useRef(new Animated.Value(0)).current;
+  const cameraTranslateY = useRef(new Animated.Value(0)).current;
+  const profileTranslateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -49,39 +65,50 @@ export default function SwipeScreen() {
   }, [permission, requestPermission]);
 
   const onGestureEvent = ({ nativeEvent }: any) => {
-    // Allow both directions, clamp between -width and 0
-    const x = Math.max(-width, Math.min(0, lastX.current + nativeEvent.translationX));
+    // Allow both directions, clamp between -2*width and 0
+    const x = Math.max(-width * 2, Math.min(0, lastX.current + nativeEvent.translationX));
     translateX.setValue(x);
   };
 
   const onHandlerStateChange = ({ nativeEvent }: any) => {
     if (nativeEvent.state === State.END) {
       const swipeDistance = nativeEvent.translationX; // Positive = right, Negative = left
+      const currentView = lastX.current >= -width / 2 ? 'feed' : lastX.current <= -width * 1.5 ? 'profile' : 'camera';
       
-      // Determine which view we're currently on
-      const isOnFeed = lastX.current <= -width / 2;
-      
-      let toValue;
-      
-      if (isOnFeed) {
-        // Currently on feed - check if swiping right to go to camera
-        if (swipeDistance > SWIPE_THRESHOLD) {
-          toValue = 0; // Go to camera
+      let toValue = 0;
+      if (currentView === 'feed') {
+        // Currently on feed - check if swiping left to go to camera
+        if (swipeDistance < -SWIPE_THRESHOLD) {
+          toValue = -width; // Go to camera
+          setActiveView('camera');
         } else {
-          toValue = -width; // Stay on feed
+          toValue = 0; // Stay on feed
+        }
+      } else if (currentView === 'profile') {
+        // Currently on profile - check if swiping right to go to camera
+        if (swipeDistance > SWIPE_THRESHOLD) {
+          toValue = -width; // Go to camera
+          setActiveView('camera');
+        } else {
+          toValue = -width * 2; // Stay on profile
         }
       } else {
-        // Currently on camera - check if swiping left to go to feed
+        // Currently on camera - check if swiping left or right
         if (swipeDistance < -SWIPE_THRESHOLD) {
-          toValue = -width; // Go to feed
+          toValue = -width * 2; // Go to profile
+          setActiveView('profile');
+        } else if (swipeDistance > SWIPE_THRESHOLD) {
+          toValue = 0; // Go to feed
+          setActiveView('feed');
         } else {
-          toValue = 0; // Stay on camera
+          toValue = -width; // Stay on camera
         }
       }
 
+      // Smooth navigation with animation
       Animated.timing(translateX, {
         toValue,
-        duration: 220,
+        duration: 300,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start(() => {
@@ -90,25 +117,62 @@ export default function SwipeScreen() {
     }
   };
 
-  const goToCamera = () => {
-    Animated.timing(translateX, {
-      toValue: 0,
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      lastX.current = 0;
-    });
+  const animatePageEntrance = (translateY: Animated.Value) => {
+    // Reset to starting position
+    translateY.setValue(5); // Start slightly down
+    Animated.sequence([
+      Animated.timing(translateY, {
+        toValue: -.001, // Move up slightly
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 0, // Return to normal position
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
+
   const goToFeed = () => {
-    Animated.timing(translateX, {
-      toValue: -width,
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => {
-      lastX.current = -width;
-    });
+    setActiveView('feed');
+    // Instant navigation when clicking button
+    translateX.setValue(0);
+    lastX.current = 0;
+    // Animate page entrance
+    animatePageEntrance(feedTranslateY);
+  };
+  const goToCamera = () => {
+    // Remember the current view before going to camera
+    if (activeView !== 'camera') {
+      setLastView(activeView);
+    }
+    setActiveView('camera');
+    // Instant navigation when clicking button
+    translateX.setValue(-width);
+    lastX.current = -width;
+    // Animate page entrance
+    animatePageEntrance(cameraTranslateY);
+  };
+  const goToProfile = () => {
+    setActiveView('profile');
+    // Instant navigation when clicking button
+    translateX.setValue(-width * 2);
+    lastX.current = -width * 2;
+    // Animate page entrance
+    animatePageEntrance(profileTranslateY);
+  };
+  const goBackFromCamera = () => {
+    // Go back to the last page the user was on
+    if (lastView === 'feed') {
+      goToFeed();
+    } else if (lastView === 'profile') {
+      goToProfile();
+    } else {
+      goToFeed(); // Default to feed if no last view
+    }
   };
   const takePicture = async () => {
     if (cameraRef.current) {
@@ -186,15 +250,117 @@ export default function SwipeScreen() {
   return (
     <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
       <Animated.View style={[styles.root, { transform: [{ translateX }] }]}>
-        {/* Camera Pane */}
-        <View style={styles.pane}>
-          <CameraView style={styles.camera} facing="back" ref={cameraRef}>
+        {/* Feed Pane (Left) */}
+        <Animated.View style={[styles.pane, { transform: [{ translateY: feedTranslateY }] }]}>
+          {/* Search Bar (Airbnb style) */}
+          <View style={styles.searchBarContainer}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search reVive"
+                placeholderTextColor="#666"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={20} color="#666" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={goToCamera} style={styles.cameraButton}>
+                  <Ionicons name="camera" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={styles.masonryContainer}>
+              <View style={styles.column}>
+                {columns.left.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
+                    <TouchableOpacity style={styles.savedButton}>
+                      <Ionicons name="bookmark-outline" size={20} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.column}>
+                {columns.right.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
+                    <TouchableOpacity style={styles.savedButton}>
+                      <Ionicons name="bookmark-outline" size={20} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+          
+          {/* Bottom Navigation Bar - Feed */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity 
+              style={styles.navButton} 
+              onPress={goToFeed}
+            >
+              <Ionicons 
+                name="grid-outline" 
+                size={24} 
+                color={activeView === 'feed' ? '#FFF' : '#666'} 
+              />
+              <Text style={[styles.navLabel, activeView === 'feed' && styles.navLabelActive]}>
+                Feed
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.navButtonCenter} 
+              onPress={goToCamera}
+            >
+              <View style={styles.cameraNavButton}>
+                <Ionicons 
+                  name="camera" 
+                  size={28} 
+                  color="#000" 
+                />
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.navButton} 
+              onPress={goToProfile}
+            >
+              <Ionicons 
+                name="person-outline" 
+                size={24} 
+                color={activeView === 'profile' ? '#FFF' : '#666'} 
+              />
+              <Text style={[styles.navLabel, activeView === 'profile' && styles.navLabelActive]}>
+                Profile
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* Camera Pane (Middle) */}
+        <Animated.View style={[styles.pane, { transform: [{ translateY: cameraTranslateY }] }]}>
+          <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'}>
             {/* Camera UI hidden while preview is visible */}
             {!previewUri ? (
               <>
                 <View style={styles.topControls}>
-                  <TouchableOpacity style={styles.controlButton} onPress={goToFeed}>
-                    <Ionicons name="arrow-forward" size={24} color="white" />
+                  <TouchableOpacity style={styles.controlButton} onPress={goBackFromCamera}>
+                    <Ionicons name="arrow-back" size={24} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.controlButton} onPress={() => setFlashEnabled(!flashEnabled)}>
+                    <Ionicons 
+                      name={flashEnabled ? 'flash' : 'flash-off'} 
+                      size={24} 
+                      color="white" 
+                    />
                   </TouchableOpacity>
                 </View>
 
@@ -202,9 +368,9 @@ export default function SwipeScreen() {
                 <ScanFrame />
 
                 <View style={styles.bottomControls}>
-                  <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-                    <View style={styles.captureButtonInner} />
-                  </TouchableOpacity>
+                    <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+                      <View style={styles.captureButtonInner} />
+                    </TouchableOpacity>
                 </View>
               </>
             ) : null}
@@ -237,55 +403,73 @@ export default function SwipeScreen() {
               onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
             />
           )}
-        </View>
+        </Animated.View>
 
-        {/* Feed Pane */}
-        <View style={styles.pane}>
-          <View style={styles.feedHeader}>
-            <View style={{ width: 40 }} />
-            <Text style={styles.headerTitle}>Inspo</Text>
-            <TouchableOpacity style={styles.headerButton}>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            <View style={styles.masonryContainer}>
-              <View style={styles.column}>
-                {columns.left.map(photo => (
-                  <View key={photo.id} style={styles.photoCard}>
-                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
-                    <View style={styles.photoOverlay}>
-                      <TouchableOpacity style={styles.likeButton}>
-                        <Ionicons name="heart-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.shareButton}>
-                        <Ionicons name="share-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
+        {/* Profile Pane (Right) */}
+        <Animated.View style={[styles.pane, { transform: [{ translateY: profileTranslateY }] }]}>
+          <View style={styles.profileContainer}>
+            <View style={styles.profileHeader}>
+              <Text style={styles.profileTitle}>Profile</Text>
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.profileContent}>
+              <View style={styles.profileAvatarContainer}>
+                <View style={styles.profileAvatar}>
+                  <Ionicons name="person" size={60} color="#666" />
+                </View>
+                <Text style={styles.profileName}>Your Name</Text>
+                <Text style={styles.profileUsername}>@username</Text>
               </View>
-              <View style={styles.column}>
-                {columns.right.map(photo => (
-                  <View key={photo.id} style={styles.photoCard}>
-                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
-                    <View style={styles.photoOverlay}>
-                      <TouchableOpacity style={styles.likeButton}>
-                        <Ionicons name="heart-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.shareButton}>
-                        <Ionicons name="share-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
+              <View style={styles.profileSection}>
+                <Text style={styles.sectionTitle}>My Posts</Text>
+                <Text style={styles.emptyText}>No posts yet</Text>
             </View>
           </ScrollView>
-          {/* Center Floating Camera Button */}
-          <TouchableOpacity style={styles.fabCenter} onPress={goToCamera}>
-            <Ionicons name="camera" size={24} color="black" />
-          </TouchableOpacity>
         </View>
+          
+          {/* Bottom Navigation Bar - Profile */}
+          <View style={styles.bottomNav}>
+            <TouchableOpacity 
+              style={styles.navButton} 
+              onPress={goToFeed}
+            >
+              <Ionicons 
+                name="grid-outline" 
+                size={24} 
+                color={activeView === 'feed' ? '#FFF' : '#666'} 
+              />
+              <Text style={[styles.navLabel, activeView === 'feed' && styles.navLabelActive]}>
+                Feed
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.navButtonCenter} 
+              onPress={goToCamera}
+            >
+              <View style={styles.cameraNavButton}>
+                <Ionicons 
+                  name="camera" 
+                  size={28} 
+                  color="#000" 
+                />
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.navButton} 
+              onPress={goToProfile}
+            >
+              <Ionicons 
+                name="person-outline" 
+                size={24} 
+                color={activeView === 'profile' ? '#FFF' : '#666'} 
+              />
+              <Text style={[styles.navLabel, activeView === 'profile' && styles.navLabelActive]}>
+                Profile
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
       </Animated.View>
     </PanGestureHandler>
   );
@@ -298,7 +482,7 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     flexDirection: 'row',
-    width: width * 2,
+    width: width * 3, // Three panes: feed, camera, profile
   },
   pane: {
     width,
@@ -312,7 +496,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
   controlButton: {
@@ -325,7 +509,7 @@ const styles = StyleSheet.create({
   },
   bottomControls: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 100, // Increased from 40 to move button higher up
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -357,10 +541,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 10,
-    backgroundColor: '#000',
+    backgroundColor: '#FFF',
   },
   headerButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 18, fontWeight: '600', color: '#FFF', fontFamily: 'LibreFranklin-Bold' },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#000' },
+  searchBarContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 12,
+    backgroundColor: '#000',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: '#333',
+    shadowColor: '#FFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFF',
+    padding: 0,
+    height: '100%',
+    textAlignVertical: 'center',
+  },
+  clearButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  cameraButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
   masonryContainer: { flexDirection: 'row', paddingHorizontal: 10, paddingTop: 10 },
   column: { flex: 1, paddingHorizontal: 5 },
   photoCard: {
@@ -375,14 +599,101 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   photo: { width: '100%', borderRadius: 12 },
-  photoOverlay: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', gap: 8 },
-  likeButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
-  shareButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' },
-  fabCenter: {
+  savedButton: {
     position: 'absolute',
-    bottom: 30,
-    left: '50%',
-    marginLeft: -28,
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  profileHeader: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  profileTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFF',
+  },
+  profileContent: {
+    padding: 20,
+  },
+  profileAvatarContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  profileAvatar: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#1A1A1A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  profileUsername: {
+    fontSize: 16,
+    color: '#999',
+  },
+  profileSection: {
+    marginTop: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFF',
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 80,
+    backgroundColor: '#000',
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingBottom: 20,
+    paddingTop: 10,
+  },
+  navButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  navButtonCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 20,
+  },
+  cameraNavButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -394,6 +705,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  navLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  navLabelActive: {
+    color: '#FFF',
   },
 });
 
