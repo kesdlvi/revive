@@ -20,7 +20,6 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="swipe" options={{ headerShown: false }} />
           <Stack.Screen name="test-supabase" options={{ title: 'Test Supabase' }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
