@@ -39,4 +39,6 @@ After opening the app, click the "Browse Feed" button, then the camera button at
 
 Clicking on the "Revive" tab will bring you to a page that can get a further analysis on the item. To do this, click on the "Run Detailed Analysis" button. It should return a description of the item, its style, material, color, condition, and possible ways to repair the item. 
 
+Note: Right now you will need an OpenAI API key in order for the item identification and analysis to work. 
+
 
