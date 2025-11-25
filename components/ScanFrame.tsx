@@ -44,6 +44,7 @@ const styles = StyleSheet.create({
   scanFrame: {
     position: 'absolute',
     justifyContent: 'center',
+    zIndex: 5,
   },
   cornerH: {
     position: 'absolute',

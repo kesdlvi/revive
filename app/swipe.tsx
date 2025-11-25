@@ -8,11 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Dimensions, Easing, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
-
-const { width, height } = Dimensions.get('window');
-const SWIPE_THRESHOLD = 50; // Lower threshold for easier swiping
+import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const samplePhotos = [
   { id: 1, uri: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80', height: 400 },
@@ -111,59 +107,6 @@ export default function SwipeScreen() {
     }
   }, [permission, requestPermission]);
 
-  const onGestureEvent = ({ nativeEvent }: any) => {
-    // Allow both directions, clamp between -2*width and 0
-    const x = Math.max(-width * 2, Math.min(0, lastX.current + nativeEvent.translationX));
-    translateX.setValue(x);
-  };
-
-  const onHandlerStateChange = ({ nativeEvent }: any) => {
-    if (nativeEvent.state === State.END) {
-      const swipeDistance = nativeEvent.translationX; // Positive = right, Negative = left
-      const currentView = lastX.current >= -width / 2 ? 'feed' : lastX.current <= -width * 1.5 ? 'profile' : 'camera';
-      
-      let toValue = 0;
-      if (currentView === 'feed') {
-        // Currently on feed - check if swiping left to go to camera
-        if (swipeDistance < -SWIPE_THRESHOLD) {
-          toValue = -width; // Go to camera
-          setActiveView('camera');
-        } else {
-          toValue = 0; // Stay on feed
-        }
-      } else if (currentView === 'profile') {
-        // Currently on profile - check if swiping right to go to camera
-        if (swipeDistance > SWIPE_THRESHOLD) {
-          toValue = -width; // Go to camera
-          setActiveView('camera');
-        } else {
-          toValue = -width * 2; // Stay on profile
-        }
-      } else {
-        // Currently on camera - check if swiping left or right
-        if (swipeDistance < -SWIPE_THRESHOLD) {
-          toValue = -width * 2; // Go to profile
-          setActiveView('profile');
-        } else if (swipeDistance > SWIPE_THRESHOLD) {
-          toValue = 0; // Go to feed
-          setActiveView('feed');
-        } else {
-          toValue = -width; // Stay on camera
-        }
-      }
-
-      // Smooth navigation with animation
-      Animated.timing(translateX, {
-        toValue,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => {
-        lastX.current = toValue;
-      });
-    }
-  };
-
   const animatePageEntrance = (translateY: Animated.Value) => {
     // Reset to starting position
     translateY.setValue(5); // Start slightly down
@@ -183,11 +126,12 @@ export default function SwipeScreen() {
     ]).start();
   };
 
+  // Helper to get nav button color (avoids TypeScript narrowing issues)
+  const getNavColor = (view: ViewType) => activeView === view ? '#FFF' : '#666';
+  const isNavActive = (view: ViewType) => activeView === view;
+
   const goToFeed = () => {
     setActiveView('feed');
-    // Instant navigation when clicking button
-    translateX.setValue(0);
-    lastX.current = 0;
     // Animate page entrance
     animatePageEntrance(feedTranslateY);
   };
@@ -197,17 +141,11 @@ export default function SwipeScreen() {
       setLastView(activeView);
     }
     setActiveView('camera');
-    // Instant navigation when clicking button
-    translateX.setValue(-width);
-    lastX.current = -width;
     // Animate page entrance
     animatePageEntrance(cameraTranslateY);
   };
   const goToProfile = () => {
     setActiveView('profile');
-    // Instant navigation when clicking button
-    translateX.setValue(-width * 2);
-    lastX.current = -width * 2;
     // Animate page entrance
     animatePageEntrance(profileTranslateY);
   };
@@ -295,9 +233,9 @@ export default function SwipeScreen() {
   }
 
   return (
-    <PanGestureHandler onGestureEvent={onGestureEvent} onHandlerStateChange={onHandlerStateChange}>
-      <Animated.View style={[styles.root, { transform: [{ translateX }] }]}>
-        {/* Feed Pane (Left) */}
+    <View style={styles.root}>
+        {/* Feed Pane */}
+        {activeView === 'feed' && (
         <Animated.View style={[styles.pane, { transform: [{ translateY: feedTranslateY }] }]}>
           {/* Search Bar (Airbnb style) */}
           <View style={styles.searchBarContainer}>
@@ -346,95 +284,53 @@ export default function SwipeScreen() {
               </View>
             </View>
           </ScrollView>
-          
-          {/* Bottom Navigation Bar - Feed */}
-          <View style={styles.bottomNav}>
-            <TouchableOpacity 
-              style={styles.navButton} 
-              onPress={goToFeed}
-            >
-              <Ionicons 
-                name="grid-outline" 
-                size={24} 
-                color={activeView === 'feed' ? '#FFF' : '#666'} 
-              />
-              <Text style={[styles.navLabel, activeView === 'feed' && styles.navLabelActive]}>
-                Feed
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.navButtonCenter} 
-              onPress={goToCamera}
-            >
-              <View style={styles.cameraNavButton}>
-                <Ionicons 
-                  name="camera" 
-                  size={28} 
-                  color="#000" 
-                />
-              </View>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.navButton} 
-              onPress={goToProfile}
-            >
-              <Ionicons 
-                name="person-outline" 
-                size={24} 
-                color={activeView === 'profile' ? '#FFF' : '#666'} 
-              />
-              <Text style={[styles.navLabel, activeView === 'profile' && styles.navLabelActive]}>
-                Profile
-              </Text>
-            </TouchableOpacity>
-          </View>
         </Animated.View>
+        )}
 
-        {/* Camera Pane (Middle) */}
+        {/* Camera Pane */}
+        {activeView === 'camera' && (
         <Animated.View style={[styles.pane, { transform: [{ translateY: cameraTranslateY }] }]}>
-          <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'}>
-            {/* Camera UI hidden while preview is visible */}
-            {!previewUri ? (
-              <>
-                <View style={styles.topControls}>
-                  <TouchableOpacity style={styles.controlButton} onPress={goBackFromCamera}>
-                    <Ionicons name="arrow-back" size={24} color="white" />
+          <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'} />
+          
+          {/* Camera UI hidden while preview is visible */}
+          {!previewUri ? (
+            <>
+              <View style={styles.topControls}>
+                <TouchableOpacity style={styles.controlButton} onPress={goBackFromCamera}>
+                  <Ionicons name="arrow-back" size={24} color="white" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.controlButton} onPress={() => setFlashEnabled(!flashEnabled)}>
+                  <Ionicons 
+                    name={flashEnabled ? 'flash' : 'flash-off'} 
+                    size={24} 
+                    color="white" 
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* AR-style scan corners overlay */}
+              <ScanFrame />
+
+              <View style={styles.bottomControls}>
+                  <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+                    <View style={styles.captureButtonInner} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.controlButton} onPress={() => setFlashEnabled(!flashEnabled)}>
-                    <Ionicons 
-                      name={flashEnabled ? 'flash' : 'flash-off'} 
-                      size={24} 
-                      color="white" 
-                    />
-                  </TouchableOpacity>
-                </View>
+              </View>
+            </>
+          ) : null}
 
-                {/* AR-style scan corners overlay */}
-                <ScanFrame />
-
-                <View style={styles.bottomControls}>
-                    <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-                      <View style={styles.captureButtonInner} />
-                    </TouchableOpacity>
-                </View>
-              </>
-            ) : null}
-
-            {/* Photo Preview Overlay */}
-            {previewUri ? (
-              <PreviewOverlay
-                uri={previewUri}
-                onClose={() => {
-                  setPreviewUri(null);
-                  setShowPhotoSheet(false);
-                  setFurnitureAnalysis(null);
-                  setCurrentPhotoUri(null);
-                }}
-              />
-            ) : null}
-          </CameraView>
+          {/* Photo Preview Overlay */}
+          {previewUri ? (
+            <PreviewOverlay
+              uri={previewUri}
+              onClose={() => {
+                setPreviewUri(null);
+                setShowPhotoSheet(false);
+                setFurnitureAnalysis(null);
+                setCurrentPhotoUri(null);
+              }}
+            />
+          ) : null}
 
           {/* Photo Bottom Sheet */}
           {showPhotoSheet && (
@@ -451,8 +347,10 @@ export default function SwipeScreen() {
             />
           )}
         </Animated.View>
+        )}
 
-        {/* Profile Pane (Right) */}
+        {/* Profile Pane */}
+        {activeView === 'profile' && (
         <Animated.View style={[styles.pane, { transform: [{ translateY: profileTranslateY }] }]}>
           <View style={styles.profileContainer}>
             {/* Edit Button */}
@@ -506,8 +404,11 @@ export default function SwipeScreen() {
               </TouchableOpacity>
           </ScrollView>
         </View>
-          
-          {/* Bottom Navigation Bar - Profile */}
+        </Animated.View>
+        )}
+
+        {/* Fixed Bottom Navigation Bar - Hidden on Camera */}
+        {activeView !== 'camera' && (
           <View style={styles.bottomNav}>
             <TouchableOpacity 
               style={styles.navButton} 
@@ -516,9 +417,9 @@ export default function SwipeScreen() {
               <Ionicons 
                 name="grid-outline" 
                 size={24} 
-                color={activeView === 'feed' ? '#FFF' : '#666'} 
+                color={getNavColor('feed')} 
               />
-              <Text style={[styles.navLabel, activeView === 'feed' && styles.navLabelActive]}>
+              <Text style={[styles.navLabel, isNavActive('feed') && styles.navLabelActive]}>
                 Feed
               </Text>
             </TouchableOpacity>
@@ -543,16 +444,15 @@ export default function SwipeScreen() {
               <Ionicons 
                 name="person-outline" 
                 size={24} 
-                color={activeView === 'profile' ? '#FFF' : '#666'} 
+                color={getNavColor('profile')} 
               />
-              <Text style={[styles.navLabel, activeView === 'profile' && styles.navLabelActive]}>
+              <Text style={[styles.navLabel, isNavActive('profile') && styles.navLabelActive]}>
                 Profile
               </Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
-      </Animated.View>
-    </PanGestureHandler>
+        )}
+    </View>
   );
 }
 
@@ -562,12 +462,13 @@ export default function SwipeScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    flexDirection: 'row',
-    width: width * 3, // Three panes: feed, camera, profile
   },
   pane: {
-    width,
-    height,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'black',
   },
   camera: { flex: 1 },
@@ -579,6 +480,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
+    zIndex: 10,
   },
   controlButton: {
     width: 44,
@@ -597,6 +499,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
+    zIndex: 10,
   },
   captureButton: {
     width: 80,
@@ -821,6 +724,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: 20,
     paddingTop: 10,
+    zIndex: 1000,
   },
   navButton: {
     flex: 1,
