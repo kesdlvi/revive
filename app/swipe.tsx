@@ -8,35 +8,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Easing, Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-const samplePhotos = [
-  { id: 1, uri: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80', height: 400 },
-  { id: 2, uri: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80', height: 300 },
-  { id: 3, uri: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800&q=80', height: 500 },
-  { id: 4, uri: 'https://images.unsplash.com/photo-1551298370-9c4a0e0b1a0e?w=800&q=80', height: 350 },
-  { id: 5, uri: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=800&q=80', height: 450 },
-  { id: 6, uri: 'https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=800&q=80', height: 320 },
-  { id: 7, uri: 'https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=800&q=80', height: 380 },
-  { id: 8, uri: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800&q=80', height: 420 },
-  { id: 9, uri: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80', height: 360 },
-  { id: 10, uri: 'https://images.unsplash.com/photo-1506439773649-6e0eb8cfb237?w=800&q=80', height: 480 },
-  { id: 11, uri: 'https://images.unsplash.com/photo-1551298370-9c4a0e0b1a0e?w=800&q=80', height: 340 },
-  { id: 12, uri: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?w=800&q=80', height: 410 },
-];
+const { width } = Dimensions.get('window');
+
+interface FurnitureImage {
+  id: string;
+  public_url: string;
+  item?: string;
+  style?: string;
+  created_at: string;
+}
 
 type ViewType = 'feed' | 'camera' | 'profile';
 
 export default function SwipeScreen() {
   const params = useLocalSearchParams();
   const { user, signOut } = useAuth();
-  const getInitialView = () => {
-    if (params.initial === 'feed') return 0; // Feed is the first pane (leftmost)
-    if (params.initial === 'profile') return -width * 2; // Profile is the third pane (rightmost)
-    return -width; // Camera is the second pane (middle)
-  };
-  const initialView = getInitialView();
-  
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
@@ -50,6 +38,39 @@ export default function SwipeScreen() {
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [activeProfileTab, setActiveProfileTab] = useState<'Created' | 'Saved'>('Created');
   const [profileData, setProfileData] = useState<{ username?: string } | null>(null);
+  const [feedPhotos, setFeedPhotos] = useState<FurnitureImage[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch furniture images from database
+  const fetchFeedPhotos = async () => {
+    try {
+      console.log('🔄 Fetching feed photos...');
+      const { data, error } = await supabase
+        .from('furniture_images')
+        .select('id, public_url, item, style, created_at')
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit to 50 most recent images
+
+      if (error) {
+        console.error('❌ Error fetching feed photos:', error);
+        Alert.alert('Error', `Failed to load feed: ${error.message}`);
+      } else {
+        // Filter out any images without valid public_url
+        const validPhotos = (data || []).filter(photo => photo.public_url && photo.public_url.trim() !== '');
+        console.log(`✅ Fetched ${data?.length || 0} photos, ${validPhotos.length} with valid URLs`);
+        if (validPhotos.length > 0) {
+          console.log('Sample photo:', validPhotos[0]);
+        } else if (data && data.length > 0) {
+          console.warn('⚠️ Found photos but none have valid public_url:', data);
+        }
+        setFeedPhotos(validPhotos);
+      }
+    } catch (error: any) {
+      console.error('❌ Exception fetching feed photos:', error);
+      Alert.alert('Error', `Failed to load feed: ${error?.message || 'Unknown error'}`);
+    }
+  };
 
   // Fetch profile data when user is available
   useEffect(() => {
@@ -72,6 +93,24 @@ export default function SwipeScreen() {
     fetchProfile();
   }, [user?.id]);
 
+  // Initial fetch on mount
+  useEffect(() => {
+    const loadFeed = async () => {
+      setLoadingFeed(true);
+      await fetchFeedPhotos();
+      setLoadingFeed(false);
+    };
+
+    loadFeed();
+  }, []);
+
+  // Pull to refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeedPhotos();
+    setRefreshing(false);
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
@@ -93,9 +132,6 @@ export default function SwipeScreen() {
     );
   };
 
-  const translateX = useRef(new Animated.Value(initialView)).current; // -width = feed (left), 0 = camera (middle), width = profile (right)
-  const lastX = useRef(initialView);
-  
   // Animation values for page entrance effects
   const feedTranslateY = useRef(new Animated.Value(0)).current;
   const cameraTranslateY = useRef(new Animated.Value(0)).current;
@@ -207,16 +243,28 @@ export default function SwipeScreen() {
     }
   };
 
+  // Convert feed photos to format with estimated heights for masonry layout
   const columns = useMemo(() => {
-    const left: any[] = [];
-    const right: any[] = [];
+    const left: (FurnitureImage & { height: number })[] = [];
+    const right: (FurnitureImage & { height: number })[] = [];
     let lh = 0;
     let rh = 0;
-    samplePhotos.forEach(p => {
-      if (lh <= rh) { left.push(p); lh += p.height; } else { right.push(p); rh += p.height; }
+    
+    // Assign random heights between 200-500 for masonry effect
+    feedPhotos.forEach(photo => {
+      const height = 200 + Math.random() * 300;
+      const photoWithHeight = { ...photo, height };
+      if (lh <= rh) {
+        left.push(photoWithHeight);
+        lh += height;
+      } else {
+        right.push(photoWithHeight);
+        rh += height;
+      }
     });
+    
     return { left, right };
-  }, []);
+  }, [feedPhotos]);
 
   if (!permission) return <View style={{ flex: 1 }} />;
 
@@ -260,29 +308,61 @@ export default function SwipeScreen() {
             </View>
           </View>
 
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-            <View style={styles.masonryContainer}>
-              <View style={styles.column}>
-                {columns.left.map(photo => (
-                  <View key={photo.id} style={styles.photoCard}>
-                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
-                    <TouchableOpacity style={styles.savedButton}>
-                      <Ionicons name="bookmark-outline" size={20} color="white" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+          <ScrollView 
+            style={{ flex: 1 }} 
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#FFF"
+                colors={['#FFF']}
+              />
+            }
+          >
+            {loadingFeed ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#FFF" />
+                <Text style={styles.loadingText}>Loading feed...</Text>
               </View>
-              <View style={styles.column}>
-                {columns.right.map(photo => (
-                  <View key={photo.id} style={styles.photoCard}>
-                    <Image source={{ uri: photo.uri }} style={[styles.photo, { height: photo.height }]} />
-                    <TouchableOpacity style={styles.savedButton}>
-                      <Ionicons name="bookmark-outline" size={20} color="white" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+            ) : feedPhotos.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="images-outline" size={64} color="#666" />
+                <Text style={styles.emptyText}>No photos yet</Text>
+                <Text style={styles.emptySubtext}>Start by taking a photo!</Text>
               </View>
-            </View>
+            ) : (
+              <View style={styles.masonryContainer}>
+                <View style={styles.column}>
+                  {columns.left.map(photo => (
+                    <View key={photo.id} style={styles.photoCard}>
+                      <Image 
+                        source={{ uri: photo.public_url }} 
+                        style={[styles.photo, { height: photo.height }]} 
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity style={styles.savedButton}>
+                        <Ionicons name="bookmark-outline" size={20} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.column}>
+                  {columns.right.map(photo => (
+                    <View key={photo.id} style={styles.photoCard}>
+                      <Image 
+                        source={{ uri: photo.public_url }} 
+                        style={[styles.photo, { height: photo.height }]} 
+                        resizeMode="cover"
+                      />
+                      <TouchableOpacity style={styles.savedButton}>
+                        <Ionicons name="bookmark-outline" size={20} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
           </ScrollView>
         </Animated.View>
         )}
@@ -340,7 +420,7 @@ export default function SwipeScreen() {
                 setFurnitureAnalysis(null);
                 setCurrentPhotoUri(null);
               }}
-              samplePhotos={samplePhotos}
+              samplePhotos={feedPhotos.map((p, index) => ({ id: index + 1, uri: p.public_url, height: 300 }))}
               furnitureAnalysis={furnitureAnalysis}
               isAnalyzing={isAnalyzing}
               onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
@@ -691,6 +771,30 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#999',
+    marginTop: 16,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+    paddingHorizontal: 40,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 8,
   },
   signOutButton: {
     flexDirection: 'row',

@@ -41,8 +41,8 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
     return { left, right };
   }, [samplePhotos]);
   
-  const INITIAL_HEIGHT = height * 0.45; // 45% from bottom
-  const MAX_HEIGHT = height * 0.95; // Can slide up to 95% of screen
+  const INITIAL_HEIGHT = height * 0.5; // 50% from bottom (increased to show more content)
+  const MAX_HEIGHT = height * 0.95; // Can slide up to 98% of screen
 
   const translateY = useRef(new Animated.Value(height)).current; // Start off-screen
   const lastY = useRef(height - INITIAL_HEIGHT);
@@ -117,8 +117,10 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
           }
         ]}
       >
-        {/* Drag handle */}
-        <View style={styles.dragHandle} />
+        {/* Drag handle - make it more visible and easier to grab */}
+        <View style={styles.dragHandleContainer}>
+          <View style={styles.dragHandle} />
+        </View>
 
         {/* Header with Tabs */}
         <View style={styles.bottomSheetHeader}>
@@ -305,15 +307,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 10,
+    zIndex: 1000,
+  },
+  dragHandleContainer: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dragHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#333',
+    backgroundColor: '#666',
     borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 8,
   },
   bottomSheetHeader: {
     paddingHorizontal: 20,
