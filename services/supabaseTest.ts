@@ -2,8 +2,18 @@ import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system/legacy';
 import { analyzeFurniture, generateEmbedding } from './openai';
 
-// Test user ID (valid UUID format)
-const TEST_USER_ID = '00000000-0000-0000-0000-000000000123';
+/**
+ * Get the current authenticated user's ID
+ */
+async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id || null;
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    return null;
+  }
+}
 
 /**
  * Test Supabase connection
@@ -26,16 +36,25 @@ export async function testSupabaseConnection(): Promise<boolean> {
 /**
  * Test image upload to Supabase Storage
  * @param imageUri - Local file URI (e.g., from camera or file picker)
- * @param userId - User ID (must be valid UUID format)
+ * @param userId - Optional user ID (will use authenticated user if not provided)
  */
 export async function testImageUpload(
   imageUri: string,
-  userId: string = TEST_USER_ID
+  userId?: string
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
   try {
+    // Get current user ID if not provided
+    const currentUserId = userId || await getCurrentUserId();
+    if (!currentUserId) {
+      return {
+        success: false,
+        error: 'No user ID provided and no authenticated user found. Please sign in first.',
+      };
+    }
+
     console.log('📤 Starting image upload test...');
     console.log('Image URI:', imageUri);
-    console.log('User ID:', userId);
+    console.log('User ID:', currentUserId);
 
     // 1. Read file as base64 (React Native compatible)
     const base64 = await FileSystem.readAsStringAsync(imageUri, {
@@ -53,7 +72,7 @@ export async function testImageUpload(
     // 3. Create file path
     const fileExt = imageUri.split('.').pop() || 'jpg';
     const fileName = `test-${Date.now()}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
+    const filePath = `${currentUserId}/${fileName}`;
 
     console.log('📁 Uploading to path:', filePath);
 
@@ -101,11 +120,21 @@ export async function testImageUpload(
 export async function testSaveMetadata(
   publicUrl: string,
   storagePath: string,
-  userId: string = TEST_USER_ID,
+  userId?: string,
   analysis?: { item?: string; style?: string; material?: string; color?: string; condition?: string; description?: string }
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    // Get current user ID if not provided
+    const currentUserId = userId || await getCurrentUserId();
+    if (!currentUserId) {
+      return {
+        success: false,
+        error: 'No user ID provided and no authenticated user found. Please sign in first.',
+      };
+    }
+
     console.log('💾 Saving metadata to database...');
+    console.log('Using user ID:', currentUserId);
 
     // Generate embedding if analysis is provided
     let embedding: number[] | undefined;
@@ -121,8 +150,7 @@ export async function testSaveMetadata(
     }
 
     const metadata: any = {
-      // user_id can be null for testing (if foreign key is disabled)
-      user_id: userId || null,
+      user_id: currentUserId,
       storage_path: storagePath,
       public_url: publicUrl,
       item: analysis?.item || 'Test Chair',
@@ -209,9 +237,15 @@ export async function testFetchImages(): Promise<{ success: boolean; images?: an
  */
 export async function testCompleteUpload(
   imageUri: string,
-  userId: string = TEST_USER_ID
+  userId?: string
 ): Promise<{ success: boolean; imageData?: any; error?: string }> {
   try {
+    // Get current user ID if not provided
+    const currentUserId = userId || await getCurrentUserId();
+    if (!currentUserId) {
+      return { success: false, error: 'No user ID provided and no authenticated user found. Please sign in first.' };
+    }
+
     // 1. Test connection
     const connected = await testSupabaseConnection();
     if (!connected) {
@@ -219,7 +253,7 @@ export async function testCompleteUpload(
     }
 
     // 2. Upload image
-    const uploadResult = await testImageUpload(imageUri, userId);
+    const uploadResult = await testImageUpload(imageUri, currentUserId);
     if (!uploadResult.success || !uploadResult.publicUrl) {
       return { success: false, error: uploadResult.error || 'Upload failed' };
     }
@@ -259,7 +293,7 @@ export async function testCompleteUpload(
     const metadataResult = await testSaveMetadata(
       uploadResult.publicUrl,
       storagePath,
-      userId,
+      currentUserId,
       analysis // Pass analysis to generate embedding
     );
 
