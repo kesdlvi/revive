@@ -4,6 +4,7 @@ import { ScanFrame } from '@/components/ScanFrame';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { analyzeFurniture } from '@/services/openai';
+import { testCompleteUpload } from '@/services/supabaseTest';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -41,6 +42,9 @@ export default function SwipeScreen() {
   const [feedPhotos, setFeedPhotos] = useState<FurnitureImage[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'scan' | 'post'>('scan');
+  const [postPreviewUri, setPostPreviewUri] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch furniture images from database
   const fetchFeedPhotos = async () => {
@@ -131,7 +135,7 @@ export default function SwipeScreen() {
       ]
     );
   };
-
+  
   // Animation values for page entrance effects
   const feedTranslateY = useRef(new Animated.Value(0)).current;
   const cameraTranslateY = useRef(new Animated.Value(0)).current;
@@ -200,6 +204,12 @@ export default function SwipeScreen() {
       try {
         // @ts-ignore - takePictureAsync exists on CameraView
         const photo = await cameraRef.current.takePictureAsync();
+        
+        if (cameraMode === 'post') {
+          // Post mode: show preview with upload button
+          setPostPreviewUri(photo.uri);
+        } else {
+          // Scan mode: show analysis and bottom sheet
         setPreviewUri(photo.uri);
         setCurrentPhotoUri(photo.uri);
         setShowPhotoSheet(true);
@@ -220,10 +230,50 @@ export default function SwipeScreen() {
           );
         } finally {
           setIsAnalyzing(false);
+          }
         }
       } catch {
         Alert.alert('Error', 'Failed to take picture');
       }
+    }
+  };
+
+  const handlePostUpload = async () => {
+    if (!postPreviewUri || !user?.id) {
+      Alert.alert('Error', 'No photo to upload or user not signed in');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const result = await testCompleteUpload(postPreviewUri, user.id);
+      
+      if (result.success) {
+        Alert.alert(
+          'Success',
+          'Photo uploaded successfully!',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Reset post preview
+                setPostPreviewUri(null);
+                // Refresh feed to show new photo
+                fetchFeedPhotos();
+                // Go back to feed
+                goToFeed();
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Upload Failed', result.error || 'Failed to upload photo');
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Upload Error', error?.message || 'Failed to upload photo');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -332,36 +382,36 @@ export default function SwipeScreen() {
                 <Text style={styles.emptySubtext}>Start by taking a photo!</Text>
               </View>
             ) : (
-              <View style={styles.masonryContainer}>
-                <View style={styles.column}>
-                  {columns.left.map(photo => (
-                    <View key={photo.id} style={styles.photoCard}>
+            <View style={styles.masonryContainer}>
+              <View style={styles.column}>
+                {columns.left.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
                       <Image 
                         source={{ uri: photo.public_url }} 
                         style={[styles.photo, { height: photo.height }]} 
                         resizeMode="cover"
                       />
-                      <TouchableOpacity style={styles.savedButton}>
-                        <Ionicons name="bookmark-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-                <View style={styles.column}>
-                  {columns.right.map(photo => (
-                    <View key={photo.id} style={styles.photoCard}>
-                      <Image 
-                        source={{ uri: photo.public_url }} 
-                        style={[styles.photo, { height: photo.height }]} 
-                        resizeMode="cover"
-                      />
-                      <TouchableOpacity style={styles.savedButton}>
-                        <Ionicons name="bookmark-outline" size={20} color="white" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
+                    <TouchableOpacity style={styles.savedButton}>
+                      <Ionicons name="bookmark-outline" size={20} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
+              <View style={styles.column}>
+                {columns.right.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
+                      <Image 
+                        source={{ uri: photo.public_url }} 
+                        style={[styles.photo, { height: photo.height }]} 
+                        resizeMode="cover"
+                      />
+                    <TouchableOpacity style={styles.savedButton}>
+                      <Ionicons name="bookmark-outline" size={20} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            </View>
             )}
           </ScrollView>
         </Animated.View>
@@ -372,35 +422,104 @@ export default function SwipeScreen() {
         <Animated.View style={[styles.pane, { transform: [{ translateY: cameraTranslateY }] }]}>
           <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'} />
           
-          {/* Camera UI hidden while preview is visible */}
-          {!previewUri ? (
-            <>
-              <View style={styles.topControls}>
-                <TouchableOpacity style={styles.controlButton} onPress={goBackFromCamera}>
-                  <Ionicons name="arrow-back" size={24} color="white" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.controlButton} onPress={() => setFlashEnabled(!flashEnabled)}>
+            {/* Camera UI hidden while preview is visible */}
+            {!previewUri && !postPreviewUri ? (
+              <>
+                <View style={styles.topControls}>
+                  <TouchableOpacity style={styles.controlButton} onPress={goBackFromCamera}>
+                    <Ionicons name="arrow-back" size={24} color="white" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.controlButton} onPress={() => setFlashEnabled(!flashEnabled)}>
+                    <Ionicons 
+                      name={flashEnabled ? 'flash' : 'flash-off'} 
+                      size={24} 
+                      color="white" 
+                    />
+                  </TouchableOpacity>
+                </View>
+
+              {/* AR-style scan corners overlay - only show in scan mode */}
+              {cameraMode === 'scan' && <ScanFrame />}
+
+              {/* Camera Mode Menu */}
+              <View style={styles.cameraModeMenu}>
+                <TouchableOpacity
+                  style={[styles.cameraModeButton, cameraMode === 'scan' && styles.cameraModeButtonActive]}
+                  onPress={() => setCameraMode('scan')}
+                  activeOpacity={0.7}
+                >
                   <Ionicons 
-                    name={flashEnabled ? 'flash' : 'flash-off'} 
+                    name="qr-code-outline" 
                     size={24} 
-                    color="white" 
+                    color={cameraMode === 'scan' ? '#FFF' : '#999'} 
                   />
+                  <Text style={[styles.cameraModeText, cameraMode === 'scan' && styles.cameraModeTextActive]}>
+                    Scan
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cameraModeButton, cameraMode === 'post' && styles.cameraModeButtonActive]}
+                  onPress={() => setCameraMode('post')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons 
+                    name="add-circle-outline" 
+                    size={24} 
+                    color={cameraMode === 'post' ? '#FFF' : '#999'} 
+                  />
+                  <Text style={[styles.cameraModeText, cameraMode === 'post' && styles.cameraModeTextActive]}>
+                    Post
+                  </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* AR-style scan corners overlay */}
-              <ScanFrame />
-
+              {/* Capture button - show in both modes */}
               <View style={styles.bottomControls}>
-                  <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-                    <View style={styles.captureButtonInner} />
-                  </TouchableOpacity>
+                <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+                  <View style={styles.captureButtonInner} />
+                </TouchableOpacity>
               </View>
             </>
           ) : null}
 
-          {/* Photo Preview Overlay */}
-          {previewUri ? (
+          {/* Post Preview Screen */}
+          {postPreviewUri && cameraMode === 'post' && (
+            <View style={styles.postPreviewContainer}>
+              <Image source={{ uri: postPreviewUri }} style={styles.postPreviewImage} resizeMode="contain" />
+              
+              <View style={styles.postPreviewControls}>
+                <TouchableOpacity
+                  style={styles.postCancelButton}
+                  onPress={() => setPostPreviewUri(null)}
+                  disabled={isUploading}
+                >
+                  <Ionicons name="close" size={24} color="#FFF" />
+                  <Text style={styles.postCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.postUploadButton, isUploading && styles.postUploadButtonDisabled]}
+                  onPress={handlePostUpload}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <ActivityIndicator size="small" color="#000" />
+                      <Text style={styles.postUploadText}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload-outline" size={24} color="#000" />
+                      <Text style={styles.postUploadText}>Upload</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Photo Preview Overlay - only for scan mode */}
+          {previewUri && cameraMode === 'scan' && (
             <PreviewOverlay
               uri={previewUri}
               onClose={() => {
@@ -410,10 +529,10 @@ export default function SwipeScreen() {
                 setCurrentPhotoUri(null);
               }}
             />
-          ) : null}
+          )}
 
-          {/* Photo Bottom Sheet */}
-          {showPhotoSheet && (
+          {/* Photo Bottom Sheet - only for scan mode */}
+          {showPhotoSheet && cameraMode === 'scan' && (
             <PhotoBottomSheet
               onClose={() => {
                 setShowPhotoSheet(false);
@@ -486,7 +605,7 @@ export default function SwipeScreen() {
         </View>
         </Animated.View>
         )}
-
+          
         {/* Fixed Bottom Navigation Bar - Hidden on Camera */}
         {activeView !== 'camera' && (
           <View style={styles.bottomNav}>
@@ -592,7 +711,99 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.3)',
   },
   captureButtonInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'white' },
-
+  cameraModeMenu: {
+    position: 'absolute',
+    bottom: 180,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 40,
+    paddingHorizontal: 20,
+    zIndex: 20,
+  },
+  cameraModeButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    gap: 6,
+  },
+  cameraModeButtonActive: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  cameraModeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#999',
+  },
+  cameraModeTextActive: {
+    color: '#FFF',
+  },
+  postPreviewContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000',
+    zIndex: 100,
+  },
+  postPreviewImage: {
+    flex: 1,
+    width: '100%',
+  },
+  postPreviewControls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    gap: 16,
+  },
+  postCancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    gap: 8,
+  },
+  postCancelText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  postUploadButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    gap: 8,
+  },
+  postUploadButtonDisabled: {
+    opacity: 0.6,
+  },
+  postUploadText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   permissionContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 },
   permissionText: { fontSize: 16, textAlign: 'center', marginVertical: 20, color: '#666' },
   permissionButton: { backgroundColor: '#007AFF', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 },
