@@ -40,6 +40,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
+    paddingTop: 60,
   },
   primaryButton: {
     backgroundColor: '#007AFF',
