@@ -45,6 +45,7 @@ export default function SwipeScreen() {
   const [cameraMode, setCameraMode] = useState<'scan' | 'post'>('scan');
   const [postPreviewUri, setPostPreviewUri] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [photoDimensions, setPhotoDimensions] = useState<Record<string, { width: number; height: number }>>({});
 
   // Fetch furniture images from database
   const fetchFeedPhotos = async () => {
@@ -293,28 +294,77 @@ export default function SwipeScreen() {
     }
   };
 
-  // Convert feed photos to format with estimated heights for masonry layout
+  // Load image dimensions for proper aspect ratio
+  useEffect(() => {
+    const loadDimensions = async () => {
+      const dimensions: Record<string, { width: number; height: number }> = {};
+      
+      await Promise.all(
+        feedPhotos.map(async (photo) => {
+          try {
+            // Use promise-based Image.getSize
+            await new Promise<void>((resolve, reject) => {
+              Image.getSize(
+                photo.public_url,
+                (width, height) => {
+                  dimensions[photo.id] = { width, height };
+                  resolve();
+                },
+                (error) => {
+                  console.warn(`Failed to get dimensions for photo ${photo.id}:`, error);
+                  // Fallback to default aspect ratio (4:3)
+                  dimensions[photo.id] = { width: 4, height: 3 };
+                  resolve();
+                }
+              );
+            });
+          } catch (error) {
+            console.warn(`Failed to get dimensions for photo ${photo.id}:`, error);
+            // Fallback to default aspect ratio (4:3)
+            dimensions[photo.id] = { width: 4, height: 3 };
+          }
+        })
+      );
+      
+      setPhotoDimensions(dimensions);
+    };
+
+    if (feedPhotos.length > 0) {
+      loadDimensions();
+    }
+  }, [feedPhotos]);
+
+  // Convert feed photos to format with calculated heights based on aspect ratio
+  // All images use the same width, height is calculated from aspect ratio
   const columns = useMemo(() => {
-    const left: (FurnitureImage & { height: number })[] = [];
-    const right: (FurnitureImage & { height: number })[] = [];
+    const left: (FurnitureImage & { height: number; aspectRatio: number })[] = [];
+    const right: (FurnitureImage & { height: number; aspectRatio: number })[] = [];
     let lh = 0;
     let rh = 0;
     
-    // Assign random heights between 200-500 for masonry effect
+    // Column width is approximately half the screen minus padding
+    const columnWidth = (width - 20) / 2; // Account for container padding (10px each side)
+    
     feedPhotos.forEach(photo => {
-      const height = 200 + Math.random() * 300;
-      const photoWithHeight = { ...photo, height };
+      // Get dimensions or use default aspect ratio
+      const dims = photoDimensions[photo.id] || { width: 4, height: 3 };
+      const aspectRatio = dims.width / dims.height;
+      
+      // Calculate height based on fixed width and aspect ratio
+      const calculatedHeight = columnWidth / aspectRatio;
+      
+      const photoWithDimensions = { ...photo, height: calculatedHeight, aspectRatio };
       if (lh <= rh) {
-        left.push(photoWithHeight);
-        lh += height;
+        left.push(photoWithDimensions);
+        lh += calculatedHeight;
       } else {
-        right.push(photoWithHeight);
-        rh += height;
+        right.push(photoWithDimensions);
+        rh += calculatedHeight;
       }
     });
     
-    return { left, right };
-  }, [feedPhotos]);
+    return { left, right, columnWidth };
+  }, [feedPhotos, photoDimensions]);
 
   if (!permission) return <View style={{ flex: 1 }} />;
 
@@ -388,8 +438,8 @@ export default function SwipeScreen() {
                   <View key={photo.id} style={styles.photoCard}>
                       <Image 
                         source={{ uri: photo.public_url }} 
-                        style={[styles.photo, { height: photo.height }]} 
-                        resizeMode="cover"
+                        style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
+                        resizeMode="contain"
                       />
                     <TouchableOpacity style={styles.savedButton}>
                       <Ionicons name="bookmark-outline" size={20} color="white" />
@@ -402,8 +452,8 @@ export default function SwipeScreen() {
                   <View key={photo.id} style={styles.photoCard}>
                       <Image 
                         source={{ uri: photo.public_url }} 
-                        style={[styles.photo, { height: photo.height }]} 
-                        resizeMode="cover"
+                        style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
+                        resizeMode="contain"
                       />
                     <TouchableOpacity style={styles.savedButton}>
                       <Ionicons name="bookmark-outline" size={20} color="white" />
@@ -441,46 +491,40 @@ export default function SwipeScreen() {
               {/* AR-style scan corners overlay - only show in scan mode */}
               {cameraMode === 'scan' && <ScanFrame />}
 
-              {/* Camera Mode Menu */}
-              <View style={styles.cameraModeMenu}>
-                <TouchableOpacity
-                  style={[styles.cameraModeButton, cameraMode === 'scan' && styles.cameraModeButtonActive]}
-                  onPress={() => setCameraMode('scan')}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons 
-                    name="qr-code-outline" 
-                    size={24} 
-                    color={cameraMode === 'scan' ? '#FFF' : '#999'} 
-                  />
-                  <Text style={[styles.cameraModeText, cameraMode === 'scan' && styles.cameraModeTextActive]}>
-                    Scan
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.cameraModeButton, cameraMode === 'post' && styles.cameraModeButtonActive]}
-                  onPress={() => setCameraMode('post')}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons 
-                    name="add-circle-outline" 
-                    size={24} 
-                    color={cameraMode === 'post' ? '#FFF' : '#999'} 
-                  />
-                  <Text style={[styles.cameraModeText, cameraMode === 'post' && styles.cameraModeTextActive]}>
-                    Post
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {/* Capture button and mode menu container */}
+              <View style={styles.cameraBottomContainer}>
+                {/* Capture button - positioned so its center aligns with menu top */}
+                <View style={styles.bottomControls}>
+                    <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+                      <View style={styles.captureButtonInner} />
+                    </TouchableOpacity>
+                </View>
 
-              {/* Capture button - show in both modes */}
-              <View style={styles.bottomControls}>
-                <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-                  <View style={styles.captureButtonInner} />
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : null}
+                {/* Camera Mode Menu - white background starting at button center */}
+                <View style={styles.cameraModeMenu}>
+                  <TouchableOpacity
+                    style={[styles.cameraModeButton, cameraMode === 'scan' && styles.cameraModeButtonActive]}
+                    onPress={() => setCameraMode('scan')}
+                    activeOpacity={0.7}
+                  >
+                    
+                    <Text style={[styles.cameraModeText, cameraMode === 'scan' && styles.cameraModeTextActive]}>
+                      Scan
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.cameraModeButton, cameraMode === 'post' && styles.cameraModeButtonActive]}
+                    onPress={() => setCameraMode('post')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.cameraModeText, cameraMode === 'post' && styles.cameraModeTextActive]}>
+                      Post
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                </View>
+              </>
+            ) : null}
 
           {/* Post Preview Screen */}
           {postPreviewUri && cameraMode === 'post' && (
@@ -520,15 +564,15 @@ export default function SwipeScreen() {
 
           {/* Photo Preview Overlay - only for scan mode */}
           {previewUri && cameraMode === 'scan' && (
-            <PreviewOverlay
-              uri={previewUri}
-              onClose={() => {
-                setPreviewUri(null);
-                setShowPhotoSheet(false);
-                setFurnitureAnalysis(null);
-                setCurrentPhotoUri(null);
-              }}
-            />
+              <PreviewOverlay
+                uri={previewUri}
+                onClose={() => {
+                  setPreviewUri(null);
+                  setShowPhotoSheet(false);
+                  setFurnitureAnalysis(null);
+                  setCurrentPhotoUri(null);
+                }}
+              />
           )}
 
           {/* Photo Bottom Sheet - only for scan mode */}
@@ -689,16 +733,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bottomControls: {
+  cameraBottomContainer: {
     position: 'absolute',
-    bottom: 100, // Increased from 40 to move button higher up
+    bottom: 0,
     left: 0,
     right: 0,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  bottomControls: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
-    zIndex: 10,
+    marginBottom: -40, // Negative margin to overlap with menu (half of button height)
   },
   captureButton: {
     width: 80,
@@ -707,41 +756,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderWidth: 2,
+    borderColor: 'rgba(4, 4, 4, 0.3)',
+    zIndex: 2,
   },
   captureButtonInner: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'white' },
   cameraModeMenu: {
-    position: 'absolute',
-    bottom: 180,
-    left: 0,
-    right: 0,
+    width: '100%',
+    backgroundColor: '#000000',
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 40,
     paddingHorizontal: 20,
-    zIndex: 20,
+    paddingTop: 25, // Space for the button overlap
+    paddingBottom: 25,
+    paddingVertical: 20,
   },
   cameraModeButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: 24,
-    backgroundColor: 'rgba(0,0,0,0.3)',
     gap: 6,
+    minWidth: 100,
   },
   cameraModeButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    // No background, just bold text
   },
   cameraModeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#999',
+    color: '#666',
   },
   cameraModeTextActive: {
     color: '#FFF',
+    fontWeight: '700',
   },
   postPreviewContainer: {
     position: 'absolute',
@@ -873,7 +926,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  photo: { width: '100%', borderRadius: 12 },
+  photo: { borderRadius: 12 },
   savedButton: {
     position: 'absolute',
     bottom: 8,
