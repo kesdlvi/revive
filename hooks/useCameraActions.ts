@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { analyzeFurniture } from '@/services/openai';
+import { searchSimilarImages } from '@/services/similaritySearch';
+import { testCompleteUpload } from '@/services/supabaseTest';
+import { FurnitureImage } from '@/types/furniture';
 import { CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { analyzeFurniture } from '@/services/openai';
-import { testCompleteUpload } from '@/services/supabaseTest';
-import { useAuth } from '@/contexts/AuthContext';
-import { router } from 'expo-router';
 
 type CameraMode = 'scan' | 'post';
 
@@ -27,6 +28,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const [furnitureAnalysis, setFurnitureAnalysis] = useState<any>(null);
   const [currentPhotoUri, setCurrentPhotoUri] = useState<string | null>(null);
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [similarPhotos, setSimilarPhotos] = useState<FurnitureImage[]>([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
 
   const handleImageSelected = async (uri: string) => {
     if (cameraMode === 'post') {
@@ -45,6 +48,18 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
         const simpleResult = await analyzeFurniture(uri, 'simple');
         setFurnitureAnalysis(simpleResult);
         onImageAnalyzed(uri, simpleResult);
+        
+        // Fetch similar photos for Inspo tab
+        setLoadingSimilar(true);
+        try {
+          const similar = await searchSimilarImages(simpleResult, 20);
+          setSimilarPhotos(similar);
+        } catch (similarError) {
+          console.error('Error fetching similar photos:', similarError);
+          setSimilarPhotos([]);
+        } finally {
+          setLoadingSimilar(false);
+        }
       } catch (error: any) {
         console.error('Analysis error:', error);
         const errorMessage = error?.message || 'Failed to analyze furniture';
@@ -146,6 +161,18 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     try {
       const detailedResult = await analyzeFurniture(currentPhotoUri, 'detailed');
       setFurnitureAnalysis(detailedResult);
+      
+      // Update similar photos with more detailed analysis
+      setLoadingSimilar(true);
+      try {
+        const similar = await searchSimilarImages(detailedResult, 20);
+        setSimilarPhotos(similar);
+      } catch (similarError) {
+        console.error('Error fetching similar photos:', similarError);
+        // Keep existing similar photos on error
+      } finally {
+        setLoadingSimilar(false);
+      }
     } catch (error: any) {
       console.error('Detailed analysis error:', error);
       const errorMessage = error?.message || 'Failed to get detailed analysis';
@@ -161,6 +188,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setShowPhotoSheet(false);
     setFurnitureAnalysis(null);
     setCurrentPhotoUri(null);
+    setSimilarPhotos([]);
   };
 
   return {
@@ -179,6 +207,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     currentPhotoUri,
     flashEnabled,
     setFlashEnabled,
+    similarPhotos,
+    loadingSimilar,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,

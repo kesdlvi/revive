@@ -68,6 +68,8 @@ export default function SwipeScreen() {
     currentPhotoUri,
     flashEnabled,
     setFlashEnabled,
+    similarPhotos,
+    loadingSimilar,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,
@@ -290,7 +292,8 @@ export default function SwipeScreen() {
             isAnalyzing={isAnalyzing}
             onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
             onClearPreview={clearPreview}
-            feedPhotos={feedPhotos}
+            similarPhotos={similarPhotos}
+            loadingSimilar={loadingSimilar}
             onBackFromCamera={goBackFromCamera}
           />
         )}

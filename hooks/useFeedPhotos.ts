@@ -19,7 +19,7 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
       if (searchTerm && searchTerm.trim().length > 0) {
         const searchPattern = `%${searchTerm.trim()}%`;
         query = query.or(
-          `item.ilike.${searchPattern},style.ilike.${searchPattern},description.ilike.${searchPattern},material.ilike.${searchPattern},color.ilike.${searchPattern}`
+          `item.ilike."${searchPattern}",style.ilike."${searchPattern}",description.ilike."${searchPattern}",material.ilike."${searchPattern}",color.ilike."${searchPattern}"`
         );
       }
 
@@ -33,7 +33,6 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
       } else {
         // Filter out any images without valid public_url
         const validPhotos = (data || []).filter(photo => photo.public_url && photo.public_url.trim() !== '');
-        console.log(`✅ Fetched ${data?.length || 0} photos, ${validPhotos.length} with valid URLs`);
         if (validPhotos.length > 0) {
           console.log('Sample photo:', validPhotos[0]);
         } else if (data && data.length > 0) {

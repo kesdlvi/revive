@@ -27,7 +27,8 @@ interface CameraPaneProps {
   isAnalyzing: boolean;
   onRequestDetailedAnalysis: () => void;
   onClearPreview: () => void;
-  feedPhotos: FurnitureImage[];
+  similarPhotos: FurnitureImage[];
+  loadingSimilar: boolean;
   onBackFromCamera: () => void;
 }
 
@@ -50,7 +51,8 @@ export function CameraPane({
   isAnalyzing,
   onRequestDetailedAnalysis,
   onClearPreview,
-  feedPhotos,
+  similarPhotos,
+  loadingSimilar,
   onBackFromCamera,
 }: CameraPaneProps) {
   return (
@@ -167,9 +169,9 @@ export function CameraPane({
       {showPhotoSheet && cameraMode === 'scan' && (
         <PhotoBottomSheet
           onClose={onClearPreview}
-          samplePhotos={feedPhotos.map((p, index) => ({ id: index + 1, uri: p.public_url, height: 300 }))}
+          samplePhotos={similarPhotos.map((p, index) => ({ id: index + 1, uri: p.public_url, height: 300 }))}
           furnitureAnalysis={furnitureAnalysis}
-          isAnalyzing={isAnalyzing}
+          isAnalyzing={isAnalyzing || loadingSimilar}
           onRequestDetailedAnalysis={onRequestDetailedAnalysis}
         />
       )}
