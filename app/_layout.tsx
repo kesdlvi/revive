@@ -22,6 +22,8 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === 'auth';
     const isCallback = segments[1] === 'callback';
+    const inTabsGroup = segments[0] === '(tabs)';
+    const inSwipeScreen = segments[0] === 'swipe';
 
     // Allow callback route to handle OAuth redirects
     if (isCallback) return;
@@ -30,8 +32,11 @@ function RootLayoutNav() {
       // Redirect to sign-in if not authenticated
       router.replace('/auth/sign-in');
     } else if (session && inAuthGroup && !isCallback) {
-      // Redirect to home if authenticated and in auth group (but not callback)
-      router.replace('/(tabs)');
+      // Redirect to feed if authenticated and in auth group (but not callback)
+      router.replace('/swipe?initial=feed');
+    } else if (session && inTabsGroup) {
+      // Redirect to feed if authenticated and on tabs screen
+      router.replace('/swipe?initial=feed');
     }
   }, [session, loading, segments]);
 
@@ -42,7 +47,6 @@ function RootLayoutNav() {
       <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       <Stack.Screen name="swipe" options={{ headerShown: false }} />
-      <Stack.Screen name="test-supabase" options={{ title: 'Test Supabase' }} />
       {/* <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} /> */}
     </Stack>
   );
