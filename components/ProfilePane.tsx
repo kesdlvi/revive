@@ -3,7 +3,7 @@ import React from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ProfilePaneProps {
-  translateY: Animated.Value;
+  scale: Animated.Value;
   profileData: { username?: string } | null;
   userEmail?: string;
   userCreatedAt?: string;
@@ -13,7 +13,7 @@ interface ProfilePaneProps {
 }
 
 export function ProfilePane({
-  translateY,
+  scale,
   profileData,
   userEmail,
   userCreatedAt,
@@ -22,7 +22,7 @@ export function ProfilePane({
   onSignOut,
 }: ProfilePaneProps) {
   return (
-    <Animated.View style={[styles.pane, { transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       <View style={styles.profileContainer}>
         {/* Edit Button */}
         <View style={styles.profileTopBar}>

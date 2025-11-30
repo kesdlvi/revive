@@ -6,7 +6,7 @@ import { ActivityIndicator, Animated, Dimensions, Image, RefreshControl, ScrollV
 const { width } = Dimensions.get('window');
 
 interface FeedPaneProps {
-  translateY: Animated.Value;
+  scale: Animated.Value;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onCameraPress: () => void;
@@ -23,7 +23,7 @@ interface FeedPaneProps {
 }
 
 export function FeedPane({
-  translateY,
+  scale,
   searchQuery,
   onSearchChange,
   onCameraPress,
@@ -35,7 +35,7 @@ export function FeedPane({
   onPhotoPress,
 }: FeedPaneProps) {
   return (
-    <Animated.View style={[styles.pane, { transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
         <View style={styles.searchBar}>
@@ -96,6 +96,7 @@ export function FeedPane({
                     source={{ uri: photo.public_url }} 
                     style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
                     resizeMode="contain"
+                    fadeDuration={150}
                   />
                   <TouchableOpacity 
                     style={styles.savedButton}
@@ -121,6 +122,7 @@ export function FeedPane({
                     source={{ uri: photo.public_url }} 
                     style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
                     resizeMode="contain"
+                    fadeDuration={150}
                   />
                   <TouchableOpacity 
                     style={styles.savedButton}
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'white',
+    backgroundColor: '#1A1A1A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -211,7 +213,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   photo: { 
-    borderRadius: 12 
+    borderRadius: 12,
+    backgroundColor: '#1A1A1A',
   },
   savedButton: {
     position: 'absolute',

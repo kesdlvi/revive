@@ -8,7 +8,7 @@ import React from 'react';
 import { ActivityIndicator, Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface CameraPaneProps {
-  translateY: Animated.Value;
+  scale: Animated.Value;
   cameraRef: React.RefObject<CameraView | null>;
   flashEnabled: boolean;
   onFlashToggle: () => void;
@@ -29,11 +29,13 @@ interface CameraPaneProps {
   onClearPreview: () => void;
   similarPhotos: FurnitureImage[];
   loadingSimilar: boolean;
+  isValidatingFurniture: boolean;
+  isFurnitureItem: boolean | null;
   onBackFromCamera: () => void;
 }
 
 export function CameraPane({
-  translateY,
+  scale,
   cameraRef,
   flashEnabled,
   onFlashToggle,
@@ -53,10 +55,12 @@ export function CameraPane({
   onClearPreview,
   similarPhotos,
   loadingSimilar,
+  isValidatingFurniture,
+  isFurnitureItem,
   onBackFromCamera,
 }: CameraPaneProps) {
   return (
-    <Animated.View style={[styles.pane, { transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'} />
       
       {/* Camera UI hidden while preview is visible */}
@@ -126,6 +130,14 @@ export function CameraPane({
         <View style={styles.postPreviewContainer}>
           <Image source={{ uri: postPreviewUri }} style={styles.postPreviewImage} resizeMode="contain" />
           
+          {/* Analyzing Animation Overlay */}
+          {isValidatingFurniture && (
+            <View style={styles.validationOverlay}>
+              <ActivityIndicator size="large" color="#FFF" />
+              <Text style={styles.validationText}>Analyzing image...</Text>
+            </View>
+          )}
+          
           <View style={styles.postPreviewControls}>
             <TouchableOpacity
               style={styles.postCancelButton}
@@ -137,19 +149,27 @@ export function CameraPane({
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.postUploadButton, isUploading && styles.postUploadButtonDisabled]}
+              style={[
+                styles.postUploadButton, 
+                (isUploading || isValidatingFurniture || isFurnitureItem === false) && styles.postUploadButtonDisabled
+              ]}
               onPress={onPostUpload}
-              disabled={isUploading}
+              disabled={isUploading || isValidatingFurniture || isFurnitureItem === false}
             >
               {isUploading ? (
                 <>
                   <ActivityIndicator size="small" color="#000" />
                   <Text style={styles.postUploadText}>Uploading...</Text>
                 </>
+              ) : isValidatingFurniture ? (
+                <>
+                  <ActivityIndicator size="small" color="#666" />
+                  <Text style={[styles.postUploadText, { color: '#666' }]}>Analyzing...</Text>
+                </>
               ) : (
                 <>
-                  <Ionicons name="cloud-upload-outline" size={24} color="#000" />
-                  <Text style={styles.postUploadText}>Upload</Text>
+                  <Ionicons name="cloud-upload-outline" size={24} color={isFurnitureItem === false ? "#666" : "#000"} />
+                  <Text style={[styles.postUploadText, isFurnitureItem === false && { color: '#666' }]}>Upload</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -348,6 +368,29 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 16,
     fontWeight: '600',
+  },
+  validationOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 50,
+  },
+  validationText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  validationErrorText: {
+    color: '#FF3B30',
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
   },
 });
 

@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { analyzeFurniture } from '@/services/openai';
+import { analyzeFurniture, identifyFurnitureSimple } from '@/services/openai';
 import { searchSimilarImages } from '@/services/similaritySearch';
 import { testCompleteUpload } from '@/services/supabaseTest';
 import { FurnitureImage } from '@/types/furniture';
@@ -30,11 +30,50 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [similarPhotos, setSimilarPhotos] = useState<FurnitureImage[]>([]);
   const [loadingSimilar, setLoadingSimilar] = useState(false);
+  const [isValidatingFurniture, setIsValidatingFurniture] = useState(false);
+  const [isFurnitureItem, setIsFurnitureItem] = useState<boolean | null>(null);
 
   const handleImageSelected = async (uri: string) => {
     if (cameraMode === 'post') {
-      // Post mode: show preview with upload button
+      // Post mode: show preview immediately, then validate in background
       setPostPreviewUri(uri);
+      setIsFurnitureItem(null); // Reset validation state
+      
+      // Validate if it's a furniture item in the background
+      setIsValidatingFurniture(true);
+      try {
+        const result = await identifyFurnitureSimple(uri);
+        const isValid = !result.item.toLowerCase().includes('not a furniture item');
+        setIsFurnitureItem(isValid);
+        
+        if (!isValid) {
+          Alert.alert(
+            'Not a Furniture Item',
+            'This image doesn\'t appear to be a furniture item. Please select a different image.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Go back to camera (clear preview)
+                  setPostPreviewUri(null);
+                  setIsFurnitureItem(null);
+                }
+              }
+            ]
+          );
+        }
+      } catch (error: any) {
+        console.error('Error validating furniture:', error);
+        // On validation error, allow upload anyway (fail open)
+        setIsFurnitureItem(true);
+        Alert.alert(
+          'Validation Error',
+          'Could not validate image. You can still upload, but make sure it\'s a furniture item.',
+          [{ text: 'OK' }]
+        );
+      } finally {
+        setIsValidatingFurniture(false);
+      }
     } else {
       // Scan mode: show analysis and bottom sheet
       setPreviewUri(uri);
@@ -117,6 +156,22 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
       return;
     }
 
+    // Check if validation is still in progress
+    if (isValidatingFurniture) {
+      Alert.alert('Please wait', 'Validating image...');
+      return;
+    }
+
+    // Check if image was validated as not a furniture item
+    if (isFurnitureItem === false) {
+      Alert.alert(
+        'Invalid Image',
+        'This image doesn\'t appear to be a furniture item. Please select a different image.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
     setIsUploading(true);
     try {
       const result = await testCompleteUpload(postPreviewUri, user.id);
@@ -189,6 +244,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setFurnitureAnalysis(null);
     setCurrentPhotoUri(null);
     setSimilarPhotos([]);
+    setIsFurnitureItem(null);
+    setIsValidatingFurniture(false);
   };
 
   return {
@@ -209,6 +266,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setFlashEnabled,
     similarPhotos,
     loadingSimilar,
+    isValidatingFurniture,
+    isFurnitureItem,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,

@@ -1,12 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { FurnitureImage } from '@/types/furniture';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera' | 'profile') {
   const [feedPhotos, setFeedPhotos] = useState<FurnitureImage[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const hasInitiallyLoaded = useRef(false);
+  const previousSearchQuery = useRef<string>('');
 
   // Fetch furniture images from database
   const fetchFeedPhotos = async (searchTerm?: string) => {
@@ -46,30 +48,43 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
     }
   };
 
-  // Initial fetch on mount
+  // Initial fetch on mount (only once)
   useEffect(() => {
     const loadFeed = async () => {
+      if (hasInitiallyLoaded.current) return;
+      
       setLoadingFeed(true);
       await fetchFeedPhotos();
       setLoadingFeed(false);
+      hasInitiallyLoaded.current = true;
+      previousSearchQuery.current = searchQuery;
     };
 
     loadFeed();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
-  // Search handler with debouncing
+  // Search handler with debouncing (only refetch when search query actually changes)
   useEffect(() => {
+    // Skip if initial load hasn't happened yet
+    if (!hasInitiallyLoaded.current) return;
+    
+    // Skip if search query hasn't actually changed
+    if (previousSearchQuery.current === searchQuery) return;
+
     const searchTimeout = setTimeout(() => {
+      // Only refetch if we're on the feed view (to avoid unnecessary requests)
       if (activeView === 'feed') {
         setLoadingFeed(true);
         fetchFeedPhotos(searchQuery).finally(() => {
           setLoadingFeed(false);
         });
       }
+      previousSearchQuery.current = searchQuery;
     }, 500); // 500ms debounce
 
     return () => clearTimeout(searchTimeout);
-  }, [searchQuery, activeView]);
+  }, [searchQuery, activeView]); // Include both, but we check if searchQuery actually changed
 
   // Pull to refresh handler
   const onRefresh = async () => {

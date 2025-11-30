@@ -1,29 +1,28 @@
-import { useState, useRef } from 'react';
-import { Animated, Easing } from 'react-native';
 import { ViewType } from '@/types/furniture';
+import { useRef, useState } from 'react';
+import { Animated, Easing } from 'react-native';
 
 export function useNavigation(initialView: ViewType) {
   const [activeView, setActiveView] = useState<ViewType>(initialView);
   const [lastView, setLastView] = useState<ViewType>('feed'); // Track last page before camera
 
-  // Animation values for page entrance effects
-  const feedTranslateY = useRef(new Animated.Value(0)).current;
-  const cameraTranslateY = useRef(new Animated.Value(0)).current;
-  const profileTranslateY = useRef(new Animated.Value(0)).current;
+  // Animation values for page entrance effects (scale animation)
+  const feedScale = useRef(new Animated.Value(1)).current;
+  const cameraScale = useRef(new Animated.Value(1)).current;
+  const profileScale = useRef(new Animated.Value(1)).current;
 
-  const animatePageEntrance = (translateY: Animated.Value) => {
-    // Reset to starting position
-    translateY.setValue(5); // Start slightly down
+  const animatePageEntrance = (scale: Animated.Value) => {
+    // Scale animation: smaller then bigger
     Animated.sequence([
-      Animated.timing(translateY, {
-        toValue: -.001, // Move up slightly
-        duration: 300,
+      Animated.timing(scale, {
+        toValue: 0.998, // Scale down to 99%
+        duration: 200,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
-      Animated.timing(translateY, {
-        toValue: 0, // Return to normal position
-        duration: 300,
+      Animated.timing(scale, {
+        toValue: 1, // Scale back to 100%
+        duration: 200,
         easing: Easing.in(Easing.ease),
         useNativeDriver: true,
       }),
@@ -33,7 +32,7 @@ export function useNavigation(initialView: ViewType) {
   const goToFeed = () => {
     setActiveView('feed');
     // Animate page entrance
-    animatePageEntrance(feedTranslateY);
+    animatePageEntrance(feedScale);
   };
 
   const goToCamera = () => {
@@ -43,13 +42,13 @@ export function useNavigation(initialView: ViewType) {
     }
     setActiveView('camera');
     // Animate page entrance
-    animatePageEntrance(cameraTranslateY);
+    animatePageEntrance(cameraScale);
   };
 
   const goToProfile = () => {
     setActiveView('profile');
     // Animate page entrance
-    animatePageEntrance(profileTranslateY);
+    animatePageEntrance(profileScale);
   };
 
   const goBackFromCamera = () => {
@@ -70,9 +69,9 @@ export function useNavigation(initialView: ViewType) {
   return {
     activeView,
     lastView,
-    feedTranslateY,
-    cameraTranslateY,
-    profileTranslateY,
+    feedScale,
+    cameraScale,
+    profileScale,
     goToFeed,
     goToCamera,
     goToProfile,

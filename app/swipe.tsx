@@ -31,9 +31,9 @@ export default function SwipeScreen() {
   const initialView: ViewType = params.initial === 'feed' ? 'feed' : params.initial === 'profile' ? 'profile' : 'camera';
   const {
     activeView,
-    feedTranslateY,
-    cameraTranslateY,
-    profileTranslateY,
+    feedScale,
+    cameraScale,
+    profileScale,
     goToFeed,
     goToCamera,
     goToProfile,
@@ -70,6 +70,8 @@ export default function SwipeScreen() {
     setFlashEnabled,
     similarPhotos,
     loadingSimilar,
+    isValidatingFurniture,
+    isFurnitureItem,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,
@@ -200,7 +202,7 @@ export default function SwipeScreen() {
         {/* Feed Pane */}
         {activeView === 'feed' && (
           <FeedPane
-            translateY={feedTranslateY}
+            scale={feedScale}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             onCameraPress={goToCamera}
@@ -273,7 +275,7 @@ export default function SwipeScreen() {
         {/* Camera Pane */}
         {activeView === 'camera' && (
           <CameraPane
-            translateY={cameraTranslateY}
+            scale={cameraScale}
             cameraRef={cameraRef}
             flashEnabled={flashEnabled}
             onFlashToggle={() => setFlashEnabled(!flashEnabled)}
@@ -294,6 +296,8 @@ export default function SwipeScreen() {
             onClearPreview={clearPreview}
             similarPhotos={similarPhotos}
             loadingSimilar={loadingSimilar}
+            isValidatingFurniture={isValidatingFurniture}
+            isFurnitureItem={isFurnitureItem}
             onBackFromCamera={goBackFromCamera}
           />
         )}
@@ -301,7 +305,7 @@ export default function SwipeScreen() {
         {/* Profile Pane */}
         {activeView === 'profile' && (
           <ProfilePane
-            translateY={profileTranslateY}
+            scale={profileScale}
             profileData={profileData}
             userEmail={user?.email}
             userCreatedAt={user?.created_at}

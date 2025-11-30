@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 const { height } = Dimensions.get('window');
@@ -28,6 +28,9 @@ type TabType = 'Inspo' | 'Revive';
  */
 export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis }: PhotoBottomSheetProps) {
   const [activeTab, setActiveTab] = useState<TabType>('Inspo');
+  const [selectedRepairs, setSelectedRepairs] = useState<Set<string>>(new Set());
+  const [customIssue, setCustomIssue] = useState('');
+  const [customIssues, setCustomIssues] = useState<string[]>([]);
 
   // Calculate columns for Inspo tab
   const inspoColumns = useMemo(() => {
@@ -132,16 +135,23 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
           )}
           {furnitureAnalysis && !isAnalyzing && (
             <View style={styles.analysisContainer}>
-              <Text style={styles.analysisLabel}>Identified:</Text>
-              <Text style={styles.analysisText}>
-                {furnitureAnalysis.item || 'Unknown furniture'}
-              </Text>
-              {furnitureAnalysis.style && (
-                <Text style={styles.analysisSubtext}>
-                  {furnitureAnalysis.style}
-                  {furnitureAnalysis.material && ` • ${furnitureAnalysis.material}`}
-                </Text>
-              )}
+              <View style={styles.analysisContent}>
+                <View style={styles.analysisTextContainer}>
+                  <Text style={styles.analysisLabel}>Here&apos;s what we identified:</Text>
+                  <Text style={styles.analysisText}>
+                    {furnitureAnalysis.item || 'Unknown furniture'}
+                  </Text>
+                  {furnitureAnalysis.style && (
+                    <Text style={styles.analysisSubtext}>
+                      {furnitureAnalysis.style}
+                      {furnitureAnalysis.material && ` • ${furnitureAnalysis.material}`}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity style={styles.editButton}>
+                  <Ionicons name="pencil-outline" size={20} color="#FFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
           
@@ -171,7 +181,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
         >
           <View style={styles.reviveContent}>
             {/* Detailed Analysis Section */}
-            {!furnitureAnalysis?.style && !furnitureAnalysis?.condition && onRequestDetailedAnalysis && (
+            {!furnitureAnalysis?.repairNeeded && onRequestDetailedAnalysis && (
               <View style={styles.revivePromptContainer}>
                 <Text style={styles.reviveTitle}>Get Repair Analysis</Text>
                 <Text style={styles.reviveDescription}>
@@ -189,63 +199,123 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
               </View>
             )}
             
-            {/* Detailed Analysis Results */}
-            {furnitureAnalysis?.style && (
-              <View style={styles.detailedAnalysisContainer}>
-                <Text style={styles.detailedSectionTitle}>Detailed Analysis</Text>
+            {/* Repair Issues Section - Show after detailed analysis */}
+            {furnitureAnalysis?.repairNeeded !== undefined && (
+              <View style={styles.repairIssuesContainer}>
+                <Text style={styles.repairIssuesTitle}>Repair issues found:</Text>
                 
-                {furnitureAnalysis.description && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Description</Text>
-                    <Text style={styles.detailedText}>{furnitureAnalysis.description}</Text>
-                  </View>
+                {/* Show message if no issues found */}
+                {(!furnitureAnalysis.repairNeeded || furnitureAnalysis.repairNeeded.length === 0) && customIssues.length === 0 && (
+                  <Text style={styles.noIssuesText}>No repair issues detected. Add any issues you found below.</Text>
                 )}
                 
-                {furnitureAnalysis.style && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Style</Text>
-                    <Text style={styles.detailedText}>{furnitureAnalysis.style}</Text>
-                  </View>
+                {/* Show subtitle only if there are issues to select */}
+                {((furnitureAnalysis.repairNeeded && furnitureAnalysis.repairNeeded.length > 0) || customIssues.length > 0) && (
+                  <Text style={styles.repairIssuesSubtitle}>Select areas you want to repair</Text>
                 )}
                 
-                {furnitureAnalysis.material && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Material</Text>
-                    <Text style={styles.detailedText}>{furnitureAnalysis.material}</Text>
-                  </View>
-                )}
-                
-                {furnitureAnalysis.color && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Color</Text>
-                    <Text style={styles.detailedText}>{furnitureAnalysis.color}</Text>
-                  </View>
-                )}
-                
-                {furnitureAnalysis.condition && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Condition</Text>
-                    <Text style={styles.detailedText}>{furnitureAnalysis.condition}</Text>
-                  </View>
-                )}
-                
+                {/* Suggested Repair Issues */}
                 {furnitureAnalysis.repairNeeded && furnitureAnalysis.repairNeeded.length > 0 && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Repair Needed</Text>
-                    {furnitureAnalysis.repairNeeded.map((repair: string, index: number) => (
-                      <Text key={index} style={styles.repairItem}>• {repair}</Text>
-                    ))}
+                  <View style={styles.repairIssuesList}>
+                    {furnitureAnalysis.repairNeeded.map((repair: string, index: number) => {
+                      const isSelected = selectedRepairs.has(repair);
+                      return (
+                        <TouchableOpacity
+                          key={index}
+                          style={[
+                            styles.repairIssueBox,
+                            isSelected && styles.repairIssueBoxSelected
+                          ]}
+                          onPress={() => {
+                            const newSelected = new Set(selectedRepairs);
+                            if (isSelected) {
+                              newSelected.delete(repair);
+                            } else {
+                              newSelected.add(repair);
+                            }
+                            setSelectedRepairs(newSelected);
+                          }}
+                        >
+                          <Text style={[
+                            styles.repairIssueText,
+                            isSelected && styles.repairIssueTextSelected
+                          ]}>
+                            {repair}
+                          </Text>
+                          {isSelected && (
+                            <Ionicons name="checkmark-circle" size={20} color="#007AFF" />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
                 
-                {furnitureAnalysis.searchQueries && furnitureAnalysis.searchQueries.length > 0 && (
-                  <View style={styles.detailedSection}>
-                    <Text style={styles.detailedLabel}>Repair Tutorial Search Queries</Text>
-                    {furnitureAnalysis.searchQueries.map((query: string, index: number) => (
-                      <Text key={index} style={styles.searchQueryItem}>• {query}</Text>
-                    ))}
+                {/* Custom Issues */}
+                {customIssues.length > 0 && (
+                  <View style={styles.repairIssuesList}>
+                    {customIssues.map((issue: string, index: number) => {
+                      const isSelected = selectedRepairs.has(issue);
+                      return (
+                        <TouchableOpacity
+                          key={`custom-${index}`}
+                          style={[
+                            styles.repairIssueBox,
+                            isSelected && styles.repairIssueBoxSelected
+                          ]}
+                          onPress={() => {
+                            const newSelected = new Set(selectedRepairs);
+                            if (isSelected) {
+                              newSelected.delete(issue);
+                            } else {
+                              newSelected.add(issue);
+                            }
+                            setSelectedRepairs(newSelected);
+                          }}
+                        >
+                          <Text style={[
+                            styles.repairIssueText,
+                            isSelected && styles.repairIssueTextSelected
+                          ]}>
+                            {issue}
+                          </Text>
+                          {isSelected && (
+                            <Ionicons name="checkmark-circle" size={20} color="#007AFF" />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
+                
+                {/* Add Custom Issue Input - Always show */}
+                <View style={styles.addIssueContainer}>
+                  <TextInput
+                    style={styles.addIssueInput}
+                    placeholder="Add an issue found"
+                    placeholderTextColor="#666"
+                    value={customIssue}
+                    onChangeText={setCustomIssue}
+                    onSubmitEditing={() => {
+                      if (customIssue.trim()) {
+                        setCustomIssues([...customIssues, customIssue.trim()]);
+                        setCustomIssue('');
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={[styles.addIssueButton, !customIssue.trim() && styles.addIssueButtonDisabled]}
+                    onPress={() => {
+                      if (customIssue.trim()) {
+                        setCustomIssues([...customIssues, customIssue.trim()]);
+                        setCustomIssue('');
+                      }
+                    }}
+                    disabled={!customIssue.trim()}
+                  >
+                    <Ionicons name="add" size={24} color={customIssue.trim() ? "#007AFF" : "#666"} />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -324,20 +394,30 @@ const styles = StyleSheet.create({
   bottomSheetHeader: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
   },
   analysisContainer: {
+    borderRadius: 20,
+    borderColor: '#FFFFFF25',
+    borderWidth: 1,
     marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor:  '#FFFFFF1F',
+  },
+  analysisContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  analysisTextContainer: {
+    flex: 1,
+    marginRight: 12,
   },
   analysisLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
     color: '#999',
-    marginBottom: 4,
+    marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -345,31 +425,106 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFF',
-    marginBottom: 2,
+    marginBottom: 4,
+    flexWrap: 'wrap',
   },
   analysisSubtext: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#999',
+    marginTop: 4,
+    flexWrap: 'wrap',
+    lineHeight: 18,
+  },
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 2,
   },
-  repairNeededContainer: {
-    marginTop: 8,
-    paddingTop: 8,
+  repairIssuesContainer: {
+    marginTop: 20,
+    paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#333',
   },
-  repairLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#999',
+  repairIssuesTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFF',
     marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
-  repairItem: {
+  repairIssuesSubtitle: {
+    fontSize: 13,
+    color: '#999',
+    marginBottom: 16,
+  },
+  noIssuesText: {
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  repairIssuesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  repairIssueBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333',
+    gap: 8,
+  },
+  repairIssueBoxSelected: {
+    backgroundColor: '#001F3F',
+    borderColor: '#007AFF',
+  },
+  repairIssueText: {
     fontSize: 14,
     color: '#CCC',
-    marginTop: 2,
+  },
+  repairIssueTextSelected: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  addIssueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  addIssueInput: {
+    flex: 1,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#FFF',
+  },
+  addIssueButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addIssueButtonDisabled: {
+    opacity: 0.5,
   },
   reviveContent: {
     paddingHorizontal: 20,
