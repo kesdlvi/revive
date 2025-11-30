@@ -144,9 +144,9 @@ export default function SwipeScreen() {
           if (error) {
             console.error('Error fetching photo owner:', error);
             setPhotoOwner(null);
-          } else {
+        } else {
             setPhotoOwner(data);
-          }
+        }
         } catch (error) {
           console.error('Error fetching photo owner:', error);
           setPhotoOwner(null);
@@ -206,7 +206,7 @@ export default function SwipeScreen() {
   };
 
   const handleSignOut = async () => {
-    Alert.alert(
+          Alert.alert(
       'Sign Out',
       'Are you sure you want to sign out?',
       [
@@ -302,7 +302,7 @@ export default function SwipeScreen() {
             >
               <Ionicons name="arrow-back" size={24} color="#FFF" />
             </TouchableOpacity>
-
+            
             <ScrollView 
               style={styles.photoDetailScrollView}
               contentContainerStyle={styles.photoDetailContent}
@@ -321,7 +321,7 @@ export default function SwipeScreen() {
                   })(),
                 ]}
                 resizeMode="contain"
-              />
+                />
               
               <View style={styles.photoDetailInfo}>
                 {loadingOwner ? (
@@ -333,7 +333,7 @@ export default function SwipeScreen() {
                   <View style={styles.photoDetailOwner}>
                     <View style={styles.photoDetailOwnerAvatar}>
                       <Ionicons name="person" size={24} color="#666" />
-                    </View>
+              </View>
                     <View style={styles.photoDetailOwnerInfo}>
                       <Text style={styles.photoDetailOwnerName}>
                         {photoOwner?.display_name || photoOwner?.username || 'Unknown User'}
@@ -341,9 +341,9 @@ export default function SwipeScreen() {
                       {photoOwner?.username && (
                         <Text style={styles.photoDetailOwnerUsername}>
                           @{photoOwner.username}
-                        </Text>
+              </Text>
                       )}
-                    </View>
+          </View>
                     <TouchableOpacity 
                       style={styles.photoDetailSaveButtonInline}
                       onPress={async () => {
@@ -353,12 +353,12 @@ export default function SwipeScreen() {
                       }}
                     >
                       <NailIcon 
-                        size={24} 
+                      size={24} 
                         color="#FFF" 
                         filled={selectedPhoto ? savedPhotos.has(selectedPhoto.id) : false} 
                       />
                     </TouchableOpacity>
-                  </View>
+                </View>
                 )}
               </View>
             </ScrollView>
@@ -383,9 +383,9 @@ export default function SwipeScreen() {
             onPostCancel={() => setPostPreviewUri(null)}
             onPostUpload={handlePostUpload}
             showPhotoSheet={showPhotoSheet}
-            furnitureAnalysis={furnitureAnalysis}
-            isAnalyzing={isAnalyzing}
-            onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
+              furnitureAnalysis={furnitureAnalysis}
+              isAnalyzing={isAnalyzing}
+              onRequestDetailedAnalysis={handleRequestDetailedAnalysis}
             onClearPreview={clearPreview}
             similarPhotos={similarPhotos}
             loadingSimilar={loadingSimilar}
@@ -421,8 +421,8 @@ export default function SwipeScreen() {
               onPress={goToFeed}
             >
               <Ionicons 
-                name="grid-outline" 
-                size={24} 
+                name="home-outline" 
+                size={28} 
                 color={getNavColor('feed')} 
               />
               <Text style={[styles.navLabel, isNavActive('feed') && styles.navLabelActive]}>
@@ -437,7 +437,7 @@ export default function SwipeScreen() {
               <View style={styles.cameraNavButton}>
                 <Ionicons 
                   name="camera" 
-                  size={28} 
+                  size={36} 
                   color="#000" 
                 />
               </View>
@@ -449,7 +449,7 @@ export default function SwipeScreen() {
             >
               <Ionicons 
                 name="person-outline" 
-                size={24} 
+                size={28} 
                 color={getNavColor('profile')} 
               />
               <Text style={[styles.navLabel, isNavActive('profile') && styles.navLabelActive]}>
@@ -471,25 +471,25 @@ const styles = StyleSheet.create({
   },
   permissionContainer: { 
     flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20 
   },
   permissionText: { 
-    fontSize: 16, 
+    fontSize: 16,
     textAlign: 'center', 
     marginVertical: 20, 
     color: '#666' 
   },
   permissionButton: { 
     backgroundColor: '#007AFF', 
-    paddingHorizontal: 20, 
+    paddingHorizontal: 20,
     paddingVertical: 12, 
     borderRadius: 8 
   },
   permissionButtonText: { 
     color: 'white', 
-    fontSize: 16, 
+    fontSize: 16,
     fontWeight: '600' 
   },
   bottomNav: {
@@ -497,32 +497,35 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 90,
     backgroundColor: '#000',
     borderTopWidth: 1,
     borderTopColor: '#333',
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    gap: 20,
     alignItems: 'center',
     paddingBottom: 20,
     paddingTop: 10,
     zIndex: 1000,
   },
   navButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    flex: 0,
+    marginHorizontal: 20,
   },
   navButtonCenter: {
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 20,
+    marginTop: -78, // Move up by half the button height (56/2 = 28) so center is at top of nav bar
   },
   cameraNavButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',

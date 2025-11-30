@@ -4,8 +4,8 @@ import { ScanFrame } from '@/components/ScanFrame';
 import { FurnitureImage } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
-import React from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 

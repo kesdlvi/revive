@@ -139,33 +139,57 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
           return;
         }
         
-        // Calculate crop dimensions based on selected aspect ratio (vertical orientation)
-        // For vertical, interpret the ratio as height:width (longer side is height)
-        // So "4:3" means height:width = 4:3, where height is 4/3 times the width
         let cropWidth: number;
         let cropHeight: number;
+        let originX: number;
+        let originY: number;
         
-        // Parse aspect ratio as height:width (vertical orientation)
-        const [ratioHeight, ratioWidth] = aspectRatio.split(':').map(Number);
-        const verticalRatio = ratioHeight / ratioWidth; // height:width ratio (height is longer)
-        
-        // Calculate crop that fits within image bounds
-        // For vertical, we want height to be the longer side
-        const imageRatio = height / width; // height:width ratio of the image
-        
-        if (imageRatio > verticalRatio) {
-          // Image is taller than target, fit to width
-          cropWidth = width;
-          cropHeight = width * verticalRatio;
+        if (aspectRatio === 'custom' && customCropDimensions) {
+          // Use custom crop dimensions
+          // Convert screen coordinates to image coordinates
+          const screenWidth = Dimensions.get('window').width;
+          const screenHeight = Dimensions.get('window').height;
+          
+          // Calculate scale factors
+          const scaleX = width / screenWidth;
+          const scaleY = height / screenHeight;
+          
+          // Convert custom crop dimensions from screen space to image space
+          cropWidth = customCropDimensions.width * scaleX;
+          cropHeight = customCropDimensions.height * scaleY;
+          originX = customCropDimensions.x * scaleX;
+          originY = customCropDimensions.y * scaleY;
+          
+          // Ensure crop is within image bounds
+          cropWidth = Math.min(cropWidth, width - originX);
+          cropHeight = Math.min(cropHeight, height - originY);
+          originX = Math.max(0, Math.min(originX, width - cropWidth));
+          originY = Math.max(0, Math.min(originY, height - cropHeight));
         } else {
-          // Image is wider/shorter than target, fit to height
-          cropHeight = height;
-          cropWidth = height / verticalRatio;
+          // Calculate crop dimensions based on selected aspect ratio (vertical orientation)
+          // For vertical, interpret the ratio as height:width (longer side is height)
+          // So "4:3" means height:width = 4:3, where height is 4/3 times the width
+          const [ratioHeight, ratioWidth] = aspectRatio.split(':').map(Number);
+          const verticalRatio = ratioHeight / ratioWidth; // height:width ratio (height is longer)
+          
+          // Calculate crop that fits within image bounds
+          // For vertical, we want height to be the longer side
+          const imageRatio = height / width; // height:width ratio of the image
+          
+          if (imageRatio > verticalRatio) {
+            // Image is taller than target, fit to width
+            cropWidth = width;
+            cropHeight = width * verticalRatio;
+          } else {
+            // Image is wider/shorter than target, fit to height
+            cropHeight = height;
+            cropWidth = height / verticalRatio;
+          }
+          
+          // Center the crop
+          originX = (width - cropWidth) / 2;
+          originY = (height - cropHeight) / 2;
         }
-        
-        // Center the crop
-        const originX = (width - cropWidth) / 2;
-        const originY = (height - cropHeight) / 2;
         
         // Crop to selected aspect ratio
         const croppedImage = await ImageManipulator.manipulateAsync(

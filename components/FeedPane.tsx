@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   },
   searchBarContainer: {
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: 80,
     paddingBottom: 12,
     backgroundColor: '#000',
   },
