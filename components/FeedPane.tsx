@@ -71,6 +71,7 @@ export function FeedPane({
 
       <ScrollView 
         style={{ flex: 1 }} 
+        contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -199,17 +200,17 @@ const styles = StyleSheet.create({
   masonryContainer: { 
     flexDirection: 'row', 
     paddingHorizontal: 10, 
-    paddingTop: 10 
+    paddingTop: 10,
+    gap: 16,
   },
   column: { 
-    flex: 1, 
-    paddingHorizontal: 5 
+    flex: 1,
   },
   photoCard: {
-    marginBottom: 10,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#0F0F0F',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
   },
   photo: { 
     borderRadius: 12,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#0F0F0F',
   },
   savedButton: {
     position: 'absolute',

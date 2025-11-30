@@ -4,9 +4,10 @@ import { searchSimilarImages } from '@/services/similaritySearch';
 import { testCompleteUpload } from '@/services/supabaseTest';
 import { FurnitureImage } from '@/types/furniture';
 import { CameraView } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Image } from 'react-native';
 
 type CameraMode = 'scan' | 'post';
 
@@ -32,6 +33,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const [loadingSimilar, setLoadingSimilar] = useState(false);
   const [isValidatingFurniture, setIsValidatingFurniture] = useState(false);
   const [isFurnitureItem, setIsFurnitureItem] = useState<boolean | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<'1:1' | '4:3' | 'original'>('1:1');
 
   const handleImageSelected = async (uri: string) => {
     if (cameraMode === 'post') {
@@ -118,8 +120,72 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
       try {
         // @ts-ignore - takePictureAsync exists on CameraView
         const photo = await cameraRef.current.takePictureAsync();
-        await handleImageSelected(photo.uri);
-      } catch {
+        
+        // Get image dimensions
+        const imageInfo = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+          Image.getSize(
+            photo.uri,
+            (width, height) => resolve({ width, height }),
+            (error) => reject(error)
+          );
+        });
+        
+        // Calculate crop based on selected aspect ratio (only in post mode)
+        const { width, height } = imageInfo;
+        
+        // If aspect ratio is 'original' or not in post mode, skip cropping
+        if (aspectRatio === 'original' || cameraMode !== 'post') {
+          await handleImageSelected(photo.uri);
+          return;
+        }
+        
+        // Calculate crop dimensions based on selected aspect ratio (vertical orientation)
+        // For vertical, interpret the ratio as height:width (longer side is height)
+        // So "4:3" means height:width = 4:3, where height is 4/3 times the width
+        let cropWidth: number;
+        let cropHeight: number;
+        
+        // Parse aspect ratio as height:width (vertical orientation)
+        const [ratioHeight, ratioWidth] = aspectRatio.split(':').map(Number);
+        const verticalRatio = ratioHeight / ratioWidth; // height:width ratio (height is longer)
+        
+        // Calculate crop that fits within image bounds
+        // For vertical, we want height to be the longer side
+        const imageRatio = height / width; // height:width ratio of the image
+        
+        if (imageRatio > verticalRatio) {
+          // Image is taller than target, fit to width
+          cropWidth = width;
+          cropHeight = width * verticalRatio;
+        } else {
+          // Image is wider/shorter than target, fit to height
+          cropHeight = height;
+          cropWidth = height / verticalRatio;
+        }
+        
+        // Center the crop
+        const originX = (width - cropWidth) / 2;
+        const originY = (height - cropHeight) / 2;
+        
+        // Crop to selected aspect ratio
+        const croppedImage = await ImageManipulator.manipulateAsync(
+          photo.uri,
+          [
+            {
+              crop: {
+                originX,
+                originY,
+                width: cropWidth,
+                height: cropHeight,
+              },
+            },
+          ],
+          { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        
+        await handleImageSelected(croppedImage.uri);
+      } catch (error) {
+        console.error('Error taking/cropping picture:', error);
         Alert.alert('Error', 'Failed to take picture');
       }
     }
@@ -142,7 +208,72 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
       });
 
       if (!result.canceled && result.assets[0]) {
-        await handleImageSelected(result.assets[0].uri);
+        const imageUri = result.assets[0].uri;
+        
+        // Apply aspect ratio crop if in post mode and aspect ratio is not 'original'
+        if (cameraMode === 'post' && aspectRatio !== 'original') {
+          try {
+            // Get image dimensions
+            const imageInfo = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+              Image.getSize(
+                imageUri,
+                (width, height) => resolve({ width, height }),
+                (error) => reject(error)
+              );
+            });
+            
+            // Calculate crop based on selected aspect ratio (vertical orientation)
+            // For vertical, interpret the ratio as height:width (longer side is height)
+            // So "4:3" means height:width = 4:3, where height is 4/3 times the width
+            const { width, height } = imageInfo;
+            const [ratioHeight, ratioWidth] = aspectRatio.split(':').map(Number);
+            const verticalRatio = ratioHeight / ratioWidth; // height:width ratio (height is longer)
+            
+            let cropWidth: number;
+            let cropHeight: number;
+            
+            // For vertical, we want height to be the longer side
+            const imageRatio = height / width; // height:width ratio of the image
+            
+            if (imageRatio > verticalRatio) {
+              // Image is taller than target, fit to width
+              cropWidth = width;
+              cropHeight = width * verticalRatio;
+            } else {
+              // Image is wider/shorter than target, fit to height
+              cropHeight = height;
+              cropWidth = height / verticalRatio;
+            }
+            
+            // Center the crop
+            const originX = (width - cropWidth) / 2;
+            const originY = (height - cropHeight) / 2;
+            
+            // Crop to selected aspect ratio
+            const croppedImage = await ImageManipulator.manipulateAsync(
+              imageUri,
+              [
+                {
+                  crop: {
+                    originX,
+                    originY,
+                    width: cropWidth,
+                    height: cropHeight,
+                  },
+                },
+              ],
+              { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+            );
+            
+            await handleImageSelected(croppedImage.uri);
+          } catch (error) {
+            console.error('Error cropping image from library:', error);
+            // Fallback to original image if cropping fails
+            await handleImageSelected(imageUri);
+          }
+        } else {
+          await handleImageSelected(imageUri);
+        }
       }
     } catch (error: any) {
       console.error('Error picking image:', error);
@@ -268,6 +399,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     loadingSimilar,
     isValidatingFurniture,
     isFurnitureItem,
+    aspectRatio,
+    setAspectRatio,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,

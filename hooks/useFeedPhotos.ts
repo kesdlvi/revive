@@ -27,7 +27,7 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
 
       const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(50); // Limit to 50 most recent images
+        .limit(30); // Limit to 30 most recent images to reduce egress
 
       if (error) {
         console.error('❌ Error fetching feed photos:', error);

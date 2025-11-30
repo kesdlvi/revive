@@ -5,7 +5,9 @@ import { FurnitureImage } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import React from 'react';
-import { ActivityIndicator, Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface CameraPaneProps {
   scale: Animated.Value;
@@ -31,6 +33,8 @@ interface CameraPaneProps {
   loadingSimilar: boolean;
   isValidatingFurniture: boolean;
   isFurnitureItem: boolean | null;
+  aspectRatio: '1:1' | '4:3' | 'original';
+  onAspectRatioChange: (ratio: '1:1' | '4:3' | 'original') => void;
   onBackFromCamera: () => void;
 }
 
@@ -57,6 +61,8 @@ export function CameraPane({
   loadingSimilar,
   isValidatingFurniture,
   isFurnitureItem,
+  aspectRatio,
+  onAspectRatioChange,
   onBackFromCamera,
 }: CameraPaneProps) {
   return (
@@ -81,6 +87,77 @@ export function CameraPane({
 
           {/* AR-style scan corners overlay - only show in scan mode */}
           {cameraMode === 'scan' && <ScanFrame />}
+
+          {/* Aspect ratio crop guide overlay - only show in post mode */}
+          {cameraMode === 'post' && aspectRatio !== 'original' && (() => {
+            // Calculate crop guide dimensions based on aspect ratio (vertical orientation)
+            // For vertical, interpret the ratio as height:width (longer side is height)
+            // So "4:3" means height:width = 4:3, where height is 4/3 times the width
+            const [ratioHeight, ratioWidth] = aspectRatio.split(':').map(Number);
+            const verticalRatio = ratioHeight / ratioWidth; // height:width ratio (height is longer)
+            
+            let guideWidth: number;
+            let guideHeight: number;
+            
+            // For vertical orientation, fit to screen width and calculate height
+            guideWidth = SCREEN_WIDTH * 0.9; // Use 90% of screen width
+            guideHeight = guideWidth * verticalRatio; // Height is longer side
+            
+            // Ensure it doesn't exceed screen height
+            if (guideHeight > SCREEN_HEIGHT * 0.8) {
+              guideHeight = SCREEN_HEIGHT * 0.8;
+              guideWidth = guideHeight / verticalRatio;
+            }
+            
+            const corner = 28;
+            const stroke = 3;
+            const top = (SCREEN_HEIGHT - guideHeight) / 2;
+            const left = (SCREEN_WIDTH - guideWidth) / 2;
+            
+            return (
+              <View
+                style={[
+                  styles.cropGuideOverlay,
+                  {
+                    width: guideWidth,
+                    height: guideHeight,
+                    top,
+                    left,
+                  },
+                ]}
+              >
+                {/* Top-Left */}
+                <View style={[styles.cornerH, { width: corner, height: stroke, top: 0, left: 0 }]} />
+                <View style={[styles.cornerV, { width: stroke, height: corner, top: 0, left: 0 }]} />
+                {/* Top-Right */}
+                <View style={[styles.cornerH, { width: corner, height: stroke, top: 0, right: 0 }]} />
+                <View style={[styles.cornerV, { width: stroke, height: corner, top: 0, right: 0 }]} />
+                {/* Bottom-Left */}
+                <View style={[styles.cornerH, { width: corner, height: stroke, bottom: 0, left: 0 }]} />
+                <View style={[styles.cornerV, { width: stroke, height: corner, bottom: 0, left: 0 }]} />
+                {/* Bottom-Right */}
+                <View style={[styles.cornerH, { width: corner, height: stroke, bottom: 0, right: 0 }]} />
+                <View style={[styles.cornerV, { width: stroke, height: corner, bottom: 0, right: 0 }]} />
+              </View>
+            );
+          })()}
+
+          {/* Aspect ratio cycle button - only show in post mode */}
+          {cameraMode === 'post' && (
+            <TouchableOpacity
+              style={styles.aspectRatioCycleButton}
+              onPress={() => {
+                const ratios: ('1:1' | '4:3' | 'original')[] = ['1:1', '4:3', 'original'];
+                const currentIndex = ratios.indexOf(aspectRatio);
+                const nextIndex = (currentIndex + 1) % ratios.length;
+                onAspectRatioChange(ratios[nextIndex]);
+              }}
+            >
+              <Text style={styles.aspectRatioCycleText}>
+                {aspectRatio === 'original' ? 'Default' : aspectRatio}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Capture button and mode menu container */}
           <View style={styles.cameraBottomContainer}>
@@ -391,6 +468,38 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginTop: 8,
+  },
+  aspectRatioCycleButton: {
+    position: 'absolute',
+    bottom: 120, // Above the bottom nav tab
+    right: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    zIndex: 10,
+  },
+  aspectRatioCycleText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  cropGuideOverlay: {
+    position: 'absolute',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  cornerH: {
+    position: 'absolute',
+    backgroundColor: 'white',
+    borderRadius: 2,
+  },
+  cornerV: {
+    position: 'absolute',
+    backgroundColor: 'white',
+    borderRadius: 2,
   },
 });
 

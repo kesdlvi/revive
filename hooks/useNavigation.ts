@@ -1,10 +1,12 @@
 import { ViewType } from '@/types/furniture';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing } from 'react-native';
 
 export function useNavigation(initialView: ViewType) {
   const [activeView, setActiveView] = useState<ViewType>(initialView);
   const [lastView, setLastView] = useState<ViewType>('feed'); // Track last page before camera
+  const hasAnimatedInitial = useRef(false);
+  const isInitialMount = useRef(true);
 
   // Animation values for page entrance effects (scale animation)
   const feedScale = useRef(new Animated.Value(1)).current;
@@ -29,10 +31,20 @@ export function useNavigation(initialView: ViewType) {
     ]).start();
   };
 
+  // Mark initial mount as complete after first render
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      hasAnimatedInitial.current = true;
+    }
+  }, []);
+
   const goToFeed = () => {
     setActiveView('feed');
-    // Animate page entrance
-    animatePageEntrance(feedScale);
+    // Only animate if not the initial mount
+    if (hasAnimatedInitial.current && !isInitialMount.current) {
+      animatePageEntrance(feedScale);
+    }
   };
 
   const goToCamera = () => {
@@ -41,14 +53,18 @@ export function useNavigation(initialView: ViewType) {
       setLastView(activeView);
     }
     setActiveView('camera');
-    // Animate page entrance
-    animatePageEntrance(cameraScale);
+    // Only animate if not the initial mount
+    if (hasAnimatedInitial.current && !isInitialMount.current) {
+      animatePageEntrance(cameraScale);
+    }
   };
 
   const goToProfile = () => {
     setActiveView('profile');
-    // Animate page entrance
-    animatePageEntrance(profileScale);
+    // Only animate if not the initial mount
+    if (hasAnimatedInitial.current && !isInitialMount.current) {
+      animatePageEntrance(profileScale);
+    }
   };
 
   const goBackFromCamera = () => {

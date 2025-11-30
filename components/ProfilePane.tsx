@@ -58,7 +58,7 @@ export function ProfilePane({
       setLoading(true);
       supabase
         .from('furniture_images')
-        .select('*')
+        .select('id, public_url, user_id, item, style, description, material, color, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .then(({ data, error }) => {
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#0F0F0F',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -420,7 +420,7 @@ const styles = StyleSheet.create({
   },
   photo: { 
     borderRadius: 12,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#0F0F0F',
   },
   savedButton: {
     position: 'absolute',

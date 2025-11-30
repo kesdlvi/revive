@@ -1,10 +1,11 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
+import { SplashScreen } from '@/components/SplashScreen';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -16,9 +17,20 @@ function RootLayoutNav() {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    if (loading) return;
+    // Show splash screen for a minimum duration (e.g., 1.5 seconds)
+    const splashTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1500);
+
+    return () => clearTimeout(splashTimer);
+  }, []);
+
+  useEffect(() => {
+    // Don't navigate until splash is done and auth is loaded
+    if (loading || showSplash) return;
 
     const inAuthGroup = segments[0] === 'auth';
     const isCallback = segments[1] === 'callback';
@@ -38,10 +50,19 @@ function RootLayoutNav() {
       // Redirect to feed if authenticated and on tabs screen
       router.replace('/swipe?initial=feed');
     }
-  }, [session, loading, segments]);
+  }, [session, loading, segments, showSplash]);
+
+  // Show splash screen while loading or during splash duration
+  if (loading || showSplash) {
+    return <SplashScreen />;
+  }
 
   return (
-    <Stack>
+    <Stack
+      screenOptions={{
+        animation: 'none', // Disable default slide animations
+      }}
+    >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="auth/sign-in" options={{ headerShown: false }} />
       <Stack.Screen name="auth/sign-up" options={{ headerShown: false }} />
@@ -58,10 +79,10 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <RootLayoutNav />
-          <StatusBar style="auto" />
-        </ThemeProvider>
+        <StatusBar style="auto" />
+      </ThemeProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

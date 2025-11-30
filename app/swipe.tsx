@@ -17,7 +17,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const { width } = Dimensions.get('window');
+const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function SwipeScreen() {
   const params = useLocalSearchParams();
@@ -29,6 +29,7 @@ export default function SwipeScreen() {
   const [photoOwner, setPhotoOwner] = useState<{ username?: string; display_name?: string } | null>(null);
   const [loadingOwner, setLoadingOwner] = useState(false);
   const [savedPhotos, setSavedPhotos] = useState<Set<string>>(new Set());
+  const [selectedPhotoDimensions, setSelectedPhotoDimensions] = useState<{ width: number; height: number } | null>(null);
 
   // Load saved posts on mount
   useEffect(() => {
@@ -109,6 +110,8 @@ export default function SwipeScreen() {
     loadingSimilar,
     isValidatingFurniture,
     isFurnitureItem,
+    aspectRatio,
+    setAspectRatio,
     takePicture,
     pickImageFromLibrary,
     handlePostUpload,
@@ -126,7 +129,7 @@ export default function SwipeScreen() {
     }
   }, [permission, requestPermission]);
 
-  // Fetch photo owner when photo is selected
+  // Fetch photo owner and dimensions when photo is selected
   useEffect(() => {
     const fetchPhotoOwner = async () => {
       if (selectedPhoto?.user_id) {
@@ -155,8 +158,43 @@ export default function SwipeScreen() {
       }
     };
 
+    const loadPhotoDimensions = async () => {
+      if (selectedPhoto) {
+        // First check if dimensions are already loaded from feed
+        const existingDims = photoDimensions[selectedPhoto.id];
+        if (existingDims) {
+          setSelectedPhotoDimensions(existingDims);
+        } else {
+          // Load dimensions if not already available
+          try {
+            await new Promise<void>((resolve, reject) => {
+              Image.getSize(
+                selectedPhoto.public_url,
+                (imgWidth, imgHeight) => {
+                  setSelectedPhotoDimensions({ width: imgWidth, height: imgHeight });
+                  resolve();
+                },
+                (error) => {
+                  console.warn('Failed to get dimensions for selected photo:', error);
+                  // Fallback to square
+                  setSelectedPhotoDimensions({ width: 1, height: 1 });
+                  resolve();
+                }
+              );
+            });
+          } catch (error) {
+            console.warn('Error loading photo dimensions:', error);
+            setSelectedPhotoDimensions({ width: 1, height: 1 });
+          }
+        }
+      } else {
+        setSelectedPhotoDimensions(null);
+      }
+    };
+
     fetchPhotoOwner();
-  }, [selectedPhoto]);
+    loadPhotoDimensions();
+  }, [selectedPhoto, photoDimensions]);
 
   const handlePhotoPress = (photo: FurnitureImage) => {
     setSelectedPhoto(photo);
@@ -196,8 +234,8 @@ export default function SwipeScreen() {
     let lh = 0;
     let rh = 0;
     
-    // Column width is approximately half the screen minus padding
-    const columnWidth = (width - 20) / 2; // Account for container padding (10px each side)
+    // Column width is approximately half the screen minus padding and gap
+    const columnWidth = (width - 20 - 16) / 2; // Account for container padding (10px each side) and gap between columns (16px)
     
     feedPhotos.forEach(photo => {
       // Get dimensions or use default aspect ratio
@@ -271,7 +309,17 @@ export default function SwipeScreen() {
             >
               <Image 
                 source={{ uri: selectedPhoto.public_url }} 
-                style={styles.photoDetailImage}
+                style={[
+                  styles.photoDetailImage,
+                  selectedPhotoDimensions && (() => {
+                    const calculatedHeight = (width * selectedPhotoDimensions.height) / selectedPhotoDimensions.width;
+                    // Limit height to 80% of screen height to prevent photos from taking up entire screen
+                    const maxHeight = SCREEN_HEIGHT * 0.8;
+                    return {
+                      height: Math.min(calculatedHeight, maxHeight),
+                    };
+                  })(),
+                ]}
                 resizeMode="contain"
               />
               
@@ -343,6 +391,8 @@ export default function SwipeScreen() {
             loadingSimilar={loadingSimilar}
             isValidatingFurniture={isValidatingFurniture}
             isFurnitureItem={isFurnitureItem}
+            aspectRatio={aspectRatio}
+            onAspectRatioChange={setAspectRatio}
             onBackFromCamera={goBackFromCamera}
           />
         )}
@@ -519,7 +569,6 @@ const styles = StyleSheet.create({
   },
   photoDetailImage: {
     width: width,
-    height: width,
     backgroundColor: '#1A1A1A',
   },
   photoDetailInfo: {
