@@ -1,3 +1,5 @@
+import { EditIcon } from '@/components/EditIcon';
+import { NailIcon } from '@/components/NailIcon';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useRef, useState } from 'react';
 import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -31,6 +33,19 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
   const [selectedRepairs, setSelectedRepairs] = useState<Set<string>>(new Set());
   const [customIssue, setCustomIssue] = useState('');
   const [customIssues, setCustomIssues] = useState<string[]>([]);
+  const [savedPhotos, setSavedPhotos] = useState<Set<number>>(new Set());
+
+  const toggleSave = (photoId: number) => {
+    setSavedPhotos(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+  };
 
   // Calculate columns for Inspo tab
   const inspoColumns = useMemo(() => {
@@ -149,7 +164,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   )}
                 </View>
                 <TouchableOpacity style={styles.editButton}>
-                  <Ionicons name="pencil-outline" size={20} color="#FFF" />
+                  <EditIcon size={26} color="#FFF" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -336,8 +351,11 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     style={[styles.photo, { height: photo.height }]} 
                     resizeMode="cover"
                   />
-                  <TouchableOpacity style={styles.savedButton}>
-                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                  <TouchableOpacity 
+                    style={styles.savedButton}
+                    onPress={() => toggleSave(photo.id)}
+                  >
+                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -350,8 +368,11 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     style={[styles.photo, { height: photo.height }]} 
                     resizeMode="cover"
                   />
-                  <TouchableOpacity style={styles.savedButton}>
-                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                  <TouchableOpacity 
+                    style={styles.savedButton}
+                    onPress={() => toggleSave(photo.id)}
+                  >
+                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -406,7 +427,7 @@ const styles = StyleSheet.create({
   },
   analysisContent: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   analysisTextContainer: {
@@ -436,13 +457,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   editButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 2,
   },
   repairIssuesContainer: {
     marginTop: 20,
@@ -658,9 +674,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 4,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',

@@ -1,3 +1,4 @@
+import { NailIcon } from '@/components/NailIcon';
 import { FurnitureImage } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -20,6 +21,8 @@ interface FeedPaneProps {
     columnWidth: number;
   };
   onPhotoPress: (photo: FurnitureImage) => void;
+  savedPhotos: Set<string>;
+  onSaveToggle: (photoId: string) => Promise<void>;
 }
 
 export function FeedPane({
@@ -33,7 +36,14 @@ export function FeedPane({
   onRefresh,
   columns,
   onPhotoPress,
+  savedPhotos,
+  onSaveToggle,
 }: FeedPaneProps) {
+  const toggleSave = async (photoId: string, e: any) => {
+    e.stopPropagation();
+    await onSaveToggle(photoId);
+  };
+
   return (
     <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       {/* Search Bar */}
@@ -100,12 +110,9 @@ export function FeedPane({
                   />
                   <TouchableOpacity 
                     style={styles.savedButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      // Save functionality will be implemented later
-                    }}
+                    onPress={(e) => toggleSave(photo.id, e)}
                   >
-                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
@@ -126,12 +133,9 @@ export function FeedPane({
                   />
                   <TouchableOpacity 
                     style={styles.savedButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      // Save functionality will be implemented later
-                    }}
+                    onPress={(e) => toggleSave(photo.id, e)}
                   >
-                    <Ionicons name="bookmark-outline" size={20} color="white" />
+                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               ))}
@@ -220,9 +224,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 8,
     right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 4,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',

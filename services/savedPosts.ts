@@ -1,0 +1,137 @@
+import { supabase } from '@/lib/supabase';
+import { FurnitureImage } from '@/types/furniture';
+
+/**
+ * Save a post for the current user
+ */
+export async function savePost(furnitureImageId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('saved_posts')
+      .insert({
+        user_id: userId,
+        furniture_image_id: furnitureImageId,
+      });
+
+    if (error) {
+      // If it's a duplicate key error, that's okay - post is already saved
+      if (error.code === '23505') {
+        return { success: true };
+      }
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to save post' };
+  }
+}
+
+/**
+ * Unsave a post for the current user
+ */
+export async function unsavePost(furnitureImageId: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('saved_posts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('furniture_image_id', furnitureImageId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to unsave post' };
+  }
+}
+
+/**
+ * Check if a post is saved by the current user
+ */
+export async function isPostSaved(furnitureImageId: string, userId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('saved_posts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('furniture_image_id', furnitureImageId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error checking if post is saved:', error);
+      return false;
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error('Error checking if post is saved:', error);
+    return false;
+  }
+}
+
+/**
+ * Get all saved post IDs for the current user
+ */
+export async function getSavedPostIds(userId: string): Promise<Set<string>> {
+  try {
+    const { data, error } = await supabase
+      .from('saved_posts')
+      .select('furniture_image_id')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error fetching saved post IDs:', error);
+      return new Set();
+    }
+
+    return new Set(data?.map(item => item.furniture_image_id) || []);
+  } catch (error) {
+    console.error('Error fetching saved post IDs:', error);
+    return new Set();
+  }
+}
+
+/**
+ * Get all saved posts (with full furniture_image data) for the current user
+ */
+export async function getSavedPosts(userId: string): Promise<FurnitureImage[]> {
+  try {
+    const { data, error } = await supabase
+      .from('saved_posts')
+      .select(`
+        furniture_image_id,
+        furniture_images (
+          id,
+          user_id,
+          public_url,
+          item,
+          style,
+          description,
+          material,
+          color,
+          created_at
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching saved posts:', error);
+      return [];
+    }
+
+    // Extract furniture_images from the nested structure
+    const savedPosts: FurnitureImage[] = (data || [])
+      .map((item: any) => item.furniture_images)
+      .filter((img: any) => img !== null);
+
+    return savedPosts;
+  } catch (error) {
+    console.error('Error fetching saved posts:', error);
+    return [];
+  }
+}
+

@@ -1,5 +1,6 @@
 import { CameraPane } from '@/components/CameraPane';
 import { FeedPane } from '@/components/FeedPane';
+import { NailIcon } from '@/components/NailIcon';
 import { ProfilePane } from '@/components/ProfilePane';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCameraActions } from '@/hooks/useCameraActions';
@@ -8,6 +9,7 @@ import { useImageDimensions } from '@/hooks/useImageDimensions';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/lib/supabase';
+import { getSavedPostIds, savePost, unsavePost } from '@/services/savedPosts';
 import { FurnitureImage, ViewType } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
@@ -26,6 +28,41 @@ export default function SwipeScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<FurnitureImage | null>(null);
   const [photoOwner, setPhotoOwner] = useState<{ username?: string; display_name?: string } | null>(null);
   const [loadingOwner, setLoadingOwner] = useState(false);
+  const [savedPhotos, setSavedPhotos] = useState<Set<string>>(new Set());
+
+  // Load saved posts on mount
+  useEffect(() => {
+    if (user?.id) {
+      getSavedPostIds(user.id).then(ids => {
+        setSavedPhotos(ids);
+      });
+    }
+  }, [user?.id]);
+
+  // Handle save/unsave toggle
+  const handleSaveToggle = async (photoId: string) => {
+    if (!user?.id) return;
+
+    const isCurrentlySaved = savedPhotos.has(photoId);
+    
+    // Optimistically update UI
+    setSavedPhotos(prev => {
+      const newSet = new Set(prev);
+      if (isCurrentlySaved) {
+        newSet.delete(photoId);
+      } else {
+        newSet.add(photoId);
+      }
+      return newSet;
+    });
+
+    // Update database
+    if (isCurrentlySaved) {
+      await unsavePost(photoId, user.id);
+    } else {
+      await savePost(photoId, user.id);
+    }
+  };
 
   // Initialize navigation
   const initialView: ViewType = params.initial === 'feed' ? 'feed' : params.initial === 'profile' ? 'profile' : 'camera';
@@ -212,6 +249,8 @@ export default function SwipeScreen() {
             onRefresh={onRefresh}
             columns={columns}
             onPhotoPress={handlePhotoPress}
+            savedPhotos={savedPhotos}
+            onSaveToggle={handleSaveToggle}
           />
         )}
 
@@ -259,11 +298,17 @@ export default function SwipeScreen() {
                     </View>
                     <TouchableOpacity 
                       style={styles.photoDetailSaveButtonInline}
-                      onPress={() => {
-                        // Save functionality will be implemented later
+                      onPress={async () => {
+                        if (selectedPhoto) {
+                          await handleSaveToggle(selectedPhoto.id);
+                        }
                       }}
                     >
-                      <Ionicons name="bookmark-outline" size={24} color="#FFF" />
+                      <NailIcon 
+                        size={24} 
+                        color="#FFF" 
+                        filled={selectedPhoto ? savedPhotos.has(selectedPhoto.id) : false} 
+                      />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -312,6 +357,9 @@ export default function SwipeScreen() {
             activeProfileTab={activeProfileTab}
             onProfileTabChange={setActiveProfileTab}
             onSignOut={handleSignOut}
+            onPhotoPress={handlePhotoPress}
+            savedPhotos={savedPhotos}
+            onSaveToggle={handleSaveToggle}
           />
         )}
           
@@ -515,10 +563,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   photoDetailSaveButtonInline: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
