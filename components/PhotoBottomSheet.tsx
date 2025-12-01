@@ -2,7 +2,7 @@ import { EditIcon } from '@/components/EditIcon';
 import { NailIcon } from '@/components/NailIcon';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 const { height } = Dimensions.get('window');
@@ -19,6 +19,8 @@ interface PhotoBottomSheetProps {
   furnitureAnalysis?: any;
   isAnalyzing?: boolean;
   onRequestDetailedAnalysis?: () => void;
+  onGeneratePlan?: (selectedIssues: string[]) => void;
+  isGeneratingPlan?: boolean;
 }
 
 type TabType = 'Inspo' | 'Revive';
@@ -28,7 +30,7 @@ type TabType = 'Inspo' | 'Revive';
  * Features two tabs (Inspo, Revive) with Pinterest-style masonry layout.
  * Can be dragged up to expand, but cannot be dismissed by dragging down.
  */
-export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis }: PhotoBottomSheetProps) {
+export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis, onGeneratePlan, isGeneratingPlan }: PhotoBottomSheetProps) {
   const [activeTab, setActiveTab] = useState<TabType>('Inspo');
   const [selectedRepairs, setSelectedRepairs] = useState<Set<string>>(new Set());
   const [customIssue, setCustomIssue] = useState('');
@@ -331,6 +333,32 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     <Ionicons name="add" size={24} color={customIssue.trim() ? "#007AFF" : "#666"} />
                   </TouchableOpacity>
                 </View>
+
+                {/* Generate Plan Button - Show when issues are selected */}
+                {selectedRepairs.size > 0 && onGeneratePlan && (
+                  <View style={styles.generatePlanContainer}>
+                    <TouchableOpacity
+                      style={[styles.generatePlanButton, isGeneratingPlan && styles.generatePlanButtonDisabled]}
+                      onPress={() => {
+                        const allSelectedIssues = Array.from(selectedRepairs);
+                        onGeneratePlan(allSelectedIssues);
+                      }}
+                      disabled={isGeneratingPlan}
+                    >
+                      {isGeneratingPlan ? (
+                        <>
+                          <ActivityIndicator size="small" color="#FFF" />
+                          <Text style={styles.generatePlanButtonText}>Generating Plan...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="construct-outline" size={20} color="#FFF" />
+                          <Text style={styles.generatePlanButtonText}>Generate Repair Plan</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -541,6 +569,30 @@ const styles = StyleSheet.create({
   },
   addIssueButtonDisabled: {
     opacity: 0.5,
+  },
+  generatePlanContainer: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  generatePlanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+  },
+  generatePlanButtonDisabled: {
+    opacity: 0.6,
+  },
+  generatePlanButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
   reviveContent: {
     paddingHorizontal: 20,

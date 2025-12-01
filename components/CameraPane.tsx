@@ -36,6 +36,8 @@ interface CameraPaneProps {
   aspectRatio: '1:1' | '4:3' | 'original';
   onAspectRatioChange: (ratio: '1:1' | '4:3' | 'original') => void;
   onBackFromCamera: () => void;
+  onGeneratePlan?: (selectedIssues: string[]) => void;
+  isGeneratingPlan?: boolean;
 }
 
 export function CameraPane({
@@ -64,10 +66,18 @@ export function CameraPane({
   aspectRatio,
   onAspectRatioChange,
   onBackFromCamera,
+  onGeneratePlan,
+  isGeneratingPlan,
 }: CameraPaneProps) {
   return (
     <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
-      <CameraView style={styles.camera} facing="back" ref={cameraRef} flash={flashEnabled ? 'on' : 'off'} />
+      <CameraView 
+        style={styles.camera} 
+        facing="back" 
+        ref={cameraRef} 
+        flash={flashEnabled ? 'on' : 'off'}
+        enableTorch={flashEnabled}
+      />
       
       {/* Camera UI hidden while preview is visible */}
       {!previewUri && !postPreviewUri ? (
@@ -270,6 +280,8 @@ export function CameraPane({
           furnitureAnalysis={furnitureAnalysis}
           isAnalyzing={isAnalyzing || loadingSimilar}
           onRequestDetailedAnalysis={onRequestDetailedAnalysis}
+          onGeneratePlan={onGeneratePlan}
+          isGeneratingPlan={isGeneratingPlan}
         />
       )}
     </Animated.View>
@@ -286,7 +298,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
   },
   camera: { 
-    flex: 1 
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
   },
   topControls: {
     position: 'absolute',

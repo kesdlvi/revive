@@ -1,5 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { analyzeFurniture, identifyFurnitureSimple } from '@/services/openai';
+import { analyzeFurniture, generateTutorials, identifyFurnitureSimple, TutorialPlan } from '@/services/openai';
 import { searchSimilarImages } from '@/services/similaritySearch';
 import { testCompleteUpload } from '@/services/supabaseTest';
 import { FurnitureImage } from '@/types/furniture';
@@ -7,7 +7,7 @@ import { CameraView } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
-import { Alert, Image } from 'react-native';
+import { Alert, Dimensions, Image } from 'react-native';
 
 type CameraMode = 'scan' | 'post';
 
@@ -34,6 +34,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const [isValidatingFurniture, setIsValidatingFurniture] = useState(false);
   const [isFurnitureItem, setIsFurnitureItem] = useState<boolean | null>(null);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '4:3' | 'original'>('1:1');
+  const [tutorialPlan, setTutorialPlan] = useState<TutorialPlan | null>(null);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
   const handleImageSelected = async (uri: string) => {
     if (cameraMode === 'post') {
@@ -144,28 +146,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
         let originX: number;
         let originY: number;
         
-        if (aspectRatio === 'custom' && customCropDimensions) {
-          // Use custom crop dimensions
-          // Convert screen coordinates to image coordinates
-          const screenWidth = Dimensions.get('window').width;
-          const screenHeight = Dimensions.get('window').height;
-          
-          // Calculate scale factors
-          const scaleX = width / screenWidth;
-          const scaleY = height / screenHeight;
-          
-          // Convert custom crop dimensions from screen space to image space
-          cropWidth = customCropDimensions.width * scaleX;
-          cropHeight = customCropDimensions.height * scaleY;
-          originX = customCropDimensions.x * scaleX;
-          originY = customCropDimensions.y * scaleY;
-          
-          // Ensure crop is within image bounds
-          cropWidth = Math.min(cropWidth, width - originX);
-          cropHeight = Math.min(cropHeight, height - originY);
-          originX = Math.max(0, Math.min(originX, width - cropWidth));
-          originY = Math.max(0, Math.min(originY, height - cropHeight));
-        } else {
+        // Calculate crop dimensions based on selected aspect ratio (vertical orientation)
+        {
           // Calculate crop dimensions based on selected aspect ratio (vertical orientation)
           // For vertical, interpret the ratio as height:width (longer side is height)
           // So "4:3" means height:width = 4:3, where height is 4/3 times the width
@@ -401,6 +383,36 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setSimilarPhotos([]);
     setIsFurnitureItem(null);
     setIsValidatingFurniture(false);
+    setTutorialPlan(null);
+  };
+
+  const handleGeneratePlan = async (selectedIssues: string[]) => {
+    if (!furnitureAnalysis || selectedIssues.length === 0) {
+      Alert.alert('Error', 'Please select at least one issue to generate a plan');
+      return;
+    }
+
+    setIsGeneratingPlan(true);
+    try {
+      const plan = await generateTutorials(
+        furnitureAnalysis.item || 'furniture item',
+        selectedIssues,
+        {
+          style: furnitureAnalysis.style,
+          material: furnitureAnalysis.material,
+          condition: furnitureAnalysis.condition,
+        }
+      );
+      setTutorialPlan(plan);
+    } catch (error: any) {
+      console.error('Error generating plan:', error);
+      Alert.alert(
+        'Error',
+        error?.message || 'Failed to generate repair plan. Please try again.'
+      );
+    } finally {
+      setIsGeneratingPlan(false);
+    }
   };
 
   return {
@@ -430,6 +442,10 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     handlePostUpload,
     handleRequestDetailedAnalysis,
     clearPreview,
+    tutorialPlan,
+    setTutorialPlan,
+    isGeneratingPlan,
+    handleGeneratePlan,
   };
 }
 

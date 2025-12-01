@@ -184,3 +184,100 @@ export async function generateEmbedding(
   }
 }
 
+export interface Tutorial {
+  issue: string;
+  title: string;
+  steps: string[];
+  materials?: string[];
+  tips?: string[];
+  estimatedTime?: string;
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
+}
+
+export interface TutorialPlan {
+  furnitureItem: string;
+  tutorials: Tutorial[];
+  overview?: string;
+}
+
+/**
+ * Generate repair tutorials for selected issues
+ */
+export async function generateTutorials(
+  furnitureItem: string,
+  selectedIssues: string[],
+  furnitureContext?: { style?: string; material?: string; condition?: string }
+): Promise<TutorialPlan> {
+  try {
+    if (!selectedIssues || selectedIssues.length === 0) {
+      throw new Error('No issues selected for tutorial generation');
+    }
+
+    const contextInfo = furnitureContext 
+      ? `\nFurniture context: ${furnitureContext.style ? `Style: ${furnitureContext.style}` : ''} ${furnitureContext.material ? `Material: ${furnitureContext.material}` : ''} ${furnitureContext.condition ? `Condition: ${furnitureContext.condition}` : ''}`
+      : '';
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'user',
+          content: `Generate detailed repair tutorials for a ${furnitureItem} with the following issues: ${selectedIssues.join(', ')}.${contextInfo}
+
+Return a JSON object with this structure:
+{
+  "overview": "Brief overview of the repair plan",
+  "tutorials": [
+    {
+      "issue": "exact issue name from the list",
+      "title": "Descriptive tutorial title",
+      "steps": ["step 1", "step 2", "step 3", ...],
+      "materials": ["material 1", "material 2", ...],
+      "tips": ["helpful tip 1", "helpful tip 2", ...],
+      "estimatedTime": "e.g., 30 minutes, 2 hours, etc.",
+      "difficulty": "Easy" | "Medium" | "Hard"
+    }
+  ]
+}
+
+Generate one tutorial for each issue. Make the steps clear, actionable, and beginner-friendly. Include all necessary materials and helpful tips.`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      max_tokens: 2000,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No response from OpenAI');
+    }
+
+    const plan = JSON.parse(content) as TutorialPlan;
+    plan.furnitureItem = furnitureItem; // Ensure furniture item is set
+    
+    // Validate that we have tutorials for all selected issues
+    if (!plan.tutorials || plan.tutorials.length === 0) {
+      throw new Error('No tutorials generated');
+    }
+
+    return plan;
+  } catch (error: any) {
+    console.error('Error generating tutorials:', error);
+    
+    // Handle specific OpenAI API errors
+    if (error?.status === 429) {
+      if (error?.message?.includes('quota')) {
+        throw new Error('OpenAI API quota exceeded. Please check your billing and plan details at https://platform.openai.com/account/billing');
+      } else {
+        throw new Error('Rate limit exceeded. Please try again in a moment.');
+      }
+    } else if (error?.status === 401) {
+      throw new Error('Invalid API key. Please check your EXPO_PUBLIC_OPENAI_API_KEY in .env file.');
+    } else if (error?.status === 400) {
+      throw new Error('Invalid request. Please ensure the request is valid.');
+    }
+    
+    throw new Error(`Failed to generate tutorials: ${error?.message || error}`);
+  }
+}
+

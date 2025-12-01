@@ -2,6 +2,7 @@ import { CameraPane } from '@/components/CameraPane';
 import { FeedPane } from '@/components/FeedPane';
 import { NailIcon } from '@/components/NailIcon';
 import { ProfilePane } from '@/components/ProfilePane';
+import { TutorialsPage } from '@/components/TutorialsPage';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCameraActions } from '@/hooks/useCameraActions';
 import { useFeedPhotos } from '@/hooks/useFeedPhotos';
@@ -117,6 +118,10 @@ export default function SwipeScreen() {
     handlePostUpload,
     handleRequestDetailedAnalysis,
     clearPreview,
+    tutorialPlan,
+    setTutorialPlan,
+    isGeneratingPlan,
+    handleGeneratePlan,
   } = useCameraActions({
     onImageAnalyzed: () => {}, // Can be used for additional callbacks if needed
     onFeedRefresh: fetchFeedPhotos,
@@ -394,7 +399,19 @@ export default function SwipeScreen() {
             aspectRatio={aspectRatio}
             onAspectRatioChange={setAspectRatio}
             onBackFromCamera={goBackFromCamera}
+            onGeneratePlan={handleGeneratePlan}
+            isGeneratingPlan={isGeneratingPlan}
           />
+        )}
+
+        {/* Tutorials Page - Show when tutorial plan is generated */}
+        {tutorialPlan && (
+          <View style={styles.tutorialsOverlay}>
+            <TutorialsPage
+              tutorialPlan={tutorialPlan}
+              onClose={() => setTutorialPlan(null)}
+            />
+          </View>
         )}
 
         {/* Profile Pane */}
@@ -617,6 +634,15 @@ const styles = StyleSheet.create({
   photoDetailSaveButtonInline: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  tutorialsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000',
+    zIndex: 2000,
   },
 });
 
