@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import React from 'react';
 import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -108,7 +109,9 @@ export function CameraPane({
         <>
           <View style={styles.topControls}>
             <TouchableOpacity style={styles.controlButton} onPress={onBackFromCamera}>
-              <Ionicons name="arrow-back" size={24} color="white" />
+              <Svg width={14} height={26} viewBox="0 0 14 26" fill="none">
+                <Path d="M12.125 1.125L1.125 12.625L12.125 24.125" stroke="white" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round"/>
+              </Svg>
             </TouchableOpacity>
             <TouchableOpacity style={styles.controlButton} onPress={onFlashToggle}>
               <Ionicons 
@@ -120,7 +123,7 @@ export function CameraPane({
           </View>
 
           {/* AR-style scan corners overlay - only show in scan mode */}
-          {cameraMode === 'scan' && <ScanFrame />}
+          {cameraMode === 'scan' && <ScanFrame isAnalyzing={isAnalyzing} />}
 
           {/* Aspect ratio crop guide overlay - only show in post mode */}
           {cameraMode === 'post' && aspectRatio !== 'original' && (() => {
@@ -301,8 +304,6 @@ const styles = StyleSheet.create({
   controlButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },

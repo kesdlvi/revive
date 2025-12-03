@@ -624,11 +624,13 @@ export default function SwipeScreen() {
               onPress={goToCamera}
             >
               <View style={styles.cameraNavButton}>
-                <Ionicons 
-                  name="camera" 
-                  size={36} 
-                  color="#000" 
-                />
+                <View style={styles.cameraNavButtonInner}>
+                  <Ionicons 
+                    name="camera" 
+                    size={36} 
+                    color="#000" 
+                  />
+                </View>
               </View>
             </TouchableOpacity>
             
@@ -682,7 +684,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 90,
+    height: 80,
     backgroundColor: '#000',
     borderTopWidth: 1,
     borderTopColor: '#333',
@@ -690,8 +692,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 20,
     alignItems: 'center',
-    paddingBottom: 20,
-    paddingTop: 10,
+    paddingBottom: 35,
+    paddingTop: 25,
     zIndex: 1000,
   },
   navButton: {
@@ -708,17 +710,27 @@ const styles = StyleSheet.create({
     marginTop: -78, // Move up by half the button height (56/2 = 28) so center is at top of nav bar
   },
   cameraNavButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(4, 4, 4, 0.3)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
     elevation: 8,
+  },
+  cameraNavButtonInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   navLabel: {
     fontSize: 12,

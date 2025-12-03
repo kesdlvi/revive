@@ -42,6 +42,40 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
   const [customIssues, setCustomIssues] = useState<string[]>([]);
   const [savedPhotos, setSavedPhotos] = useState<Set<number>>(new Set());
   const lastAnalysisId = useRef<string | undefined>(undefined);
+  const colorProgress = useRef(new Animated.Value(0)).current;
+
+  // Animated gradient border with cycling colors
+  useEffect(() => {
+    if (isAnalyzing) {
+      // Cycle through gradient colors (must use JS driver for color interpolation)
+      const colorAnimation = Animated.loop(
+        Animated.timing(colorProgress, {
+          toValue: 1,
+          duration: 3000, // Slowed down from 2000ms to 3000ms
+          useNativeDriver: false, // Color interpolation needs JS driver
+        })
+      );
+      colorAnimation.start();
+
+      return () => {
+        colorAnimation.stop();
+      };
+    } else {
+      // Reset value when not analyzing
+      colorProgress.setValue(0);
+    }
+  }, [isAnalyzing, colorProgress]);
+
+  // Interpolate colors for gradient effect (#583C21 -> #A8C686 -> #583C21)
+  const gradientColor1 = colorProgress.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#583C21', '#A8C686', '#583C21'],
+  });
+
+  const gradientColor2 = colorProgress.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#A8C686', '#583C21', '#A8C686'],
+  });
 
   // Automatically run detailed analysis when Revive tab is active and analysis hasn't been requested yet
   useEffect(() => {
@@ -164,36 +198,50 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
       >
         {/* Drag handle - make it more visible and easier to grab */}
         <View style={styles.dragHandleContainer}>
-          <View style={styles.dragHandle} />
+          <Animated.View 
+            style={[
+              styles.dragHandle,
+              isAnalyzing && {
+                backgroundColor: gradientColor1,
+              }
+            ]} 
+          />
         </View>
 
         {/* Header with Tabs */}
         <View style={styles.bottomSheetHeader}>
           {/* Analysis Results Display */}
-          {isAnalyzing && (
-            <View style={styles.analysisContainer}>
-              <Text style={styles.analysisText}>Analyzing furniture...</Text>
-            </View>
-          )}
-          {furnitureAnalysis && !isAnalyzing && (
-            <View style={styles.analysisContainer}>
-              <View style={styles.analysisContent}>
-                <View style={styles.analysisTextContainer}>
-                  <Text style={styles.analysisLabel}>Here&apos;s what we identified:</Text>
-                  <Text style={styles.analysisText}>
-                    {furnitureAnalysis.item || 'Unknown furniture'}
-                  </Text>
-                  {furnitureAnalysis.material && (
-                    <Text style={styles.analysisSubtext}>
-                      {furnitureAnalysis.material}
+          {(isAnalyzing || furnitureAnalysis) && (
+            <Animated.View 
+              style={[
+                styles.analysisContainer,
+                isAnalyzing && !furnitureAnalysis?.item && {
+                  borderColor: gradientColor1,
+                  borderWidth: 2,
+                }
+              ]}
+            >
+              {isAnalyzing && !furnitureAnalysis ? (
+                <Text style={styles.analysisText}>Analyzing furniture...</Text>
+              ) : furnitureAnalysis ? (
+                <View style={styles.analysisContent}>
+                  <View style={styles.analysisTextContainer}>
+                    <Text style={styles.analysisLabel}>Here&apos;s what we identified:</Text>
+                    <Text style={styles.analysisText}>
+                      {furnitureAnalysis.item || 'Unknown furniture'}
                     </Text>
-                  )}
+                    {furnitureAnalysis.material && (
+                      <Text style={styles.analysisSubtext}>
+                        {furnitureAnalysis.material}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity style={styles.editButton}>
+                    <EditIcon size={26} color="#FFF" />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.editButton}>
-                  <EditIcon size={26} color="#FFF" />
-                </TouchableOpacity>
-              </View>
-            </View>
+              ) : null}
+            </Animated.View>
           )}
           
           {/* Tabs */}
@@ -227,30 +275,35 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
             contentContainerStyle={{ paddingBottom: 100 }}
           >
             <View style={styles.reviveContent}>
-            {/* Show subtle loading state while analyzing (animation is on photo overlay) */}
-            {isAnalyzing && furnitureAnalysis?.repairNeeded === undefined && (
-              <View style={styles.revivePromptContainer}>
-                <Text style={styles.reviveDescription}>Analyzing furniture for repair issues...</Text>
-              </View>
-            )}
-            
-            {/* Repair Issues Section - Show after detailed analysis */}
-            {furnitureAnalysis?.repairNeeded !== undefined && (
-              <View style={styles.repairIssuesContainer}>
+            {/* Repair Issues Section - Show during analysis or after detailed analysis */}
+            {(isAnalyzing || furnitureAnalysis?.repairNeeded !== undefined) && (
+              <Animated.View 
+                style={[
+                  styles.repairIssuesContainer,
+                  isAnalyzing && furnitureAnalysis?.repairNeeded === undefined && {
+                    borderColor: gradientColor2,
+                  }
+                ]}
+              >
                 <Text style={styles.repairIssuesTitle}>Repair issues found:</Text>
                 
+                {/* Show analyzing message during analysis */}
+                {isAnalyzing && (!furnitureAnalysis || furnitureAnalysis?.repairNeeded === undefined) && (
+                  <Text style={styles.noIssuesText}>Analyzing furniture for repair issues...</Text>
+                )}
+                
                 {/* Show message if no issues found */}
-                {(!furnitureAnalysis.repairNeeded || furnitureAnalysis.repairNeeded.length === 0) && customIssues.length === 0 && (
+                {!isAnalyzing && (!furnitureAnalysis || !furnitureAnalysis?.repairNeeded || furnitureAnalysis.repairNeeded.length === 0) && customIssues.length === 0 && (
                   <Text style={styles.noIssuesText}>No repair issues detected. Add any issues you found below.</Text>
                 )}
                 
                 {/* Show subtitle only if there are issues to select */}
-                {((furnitureAnalysis.repairNeeded && furnitureAnalysis.repairNeeded.length > 0) || customIssues.length > 0) && (
+                {!isAnalyzing && ((furnitureAnalysis?.repairNeeded && furnitureAnalysis.repairNeeded.length > 0) || customIssues.length > 0) && (
                   <Text style={styles.repairIssuesSubtitle}>Select areas you want to repair</Text>
                 )}
                 
                 {/* Suggested Repair Issues */}
-                {furnitureAnalysis.repairNeeded && furnitureAnalysis.repairNeeded.length > 0 && (
+                {!isAnalyzing && furnitureAnalysis?.repairNeeded && furnitureAnalysis.repairNeeded.length > 0 && (
                   <View style={styles.repairIssuesList}>
                     {furnitureAnalysis.repairNeeded.map((repair: string, index: number) => {
                       const isSelected = selectedRepairs.has(repair);
@@ -334,8 +387,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   </View>
                 )}
                 
-                {/* Add Custom Issue Input - Always show */}
-                <View style={styles.addIssueContainer}>
+                {/* Add Custom Issue Input - Show when not analyzing */}
+                {!isAnalyzing && (
+                  <View style={styles.addIssueContainer}>
                   <TextInput
                     style={styles.addIssueInput}
                     placeholder="Add an issue"
@@ -363,7 +417,8 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   >
                     <Ionicons name="add" size={24} color={customIssue.trim() ? "#A8C686" : "#666"} />
                   </TouchableOpacity>
-                </View>
+                  </View>
+                )}
 
                 {/* Generate Plan Button - Show when issues are selected */}
                 {selectedRepairs.size > 0 && onGeneratePlan && (
@@ -390,7 +445,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     </TouchableOpacity>
                   </View>
                 )}
-              </View>
+              </Animated.View>
             )}
             </View>
           </ScrollView>
@@ -816,7 +871,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
