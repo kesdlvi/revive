@@ -36,12 +36,40 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
         // Filter out any images without valid public_url
         const validPhotos = (data || [])
           .filter(photo => photo.public_url && photo.public_url.trim() !== '');
-        if (validPhotos.length > 0) {
-          console.log('Sample photo:', validPhotos[0]);
+        
+        // Fetch profile data for all unique user IDs
+        const userIds = [...new Set(validPhotos.map(p => p.user_id).filter(Boolean))];
+        const profilesMap = new Map();
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url')
+            .in('id', userIds);
+          
+          if (profiles) {
+            profiles.forEach((profile: any) => {
+              profilesMap.set(profile.id, profile);
+            });
+          }
+        }
+        
+        // Map profile data to photos
+        const photosWithProfiles = validPhotos.map(photo => {
+          const profile = photo.user_id ? profilesMap.get(photo.user_id) : null;
+          return {
+            ...photo,
+            username: profile?.username,
+            display_name: profile?.display_name,
+            avatar_url: profile?.avatar_url,
+          };
+        });
+        if (photosWithProfiles.length > 0) {
+          console.log('Sample photo:', photosWithProfiles[0]);
         } else if (data && data.length > 0) {
           console.warn('⚠️ Found photos but none have valid public_url:', data);
         }
-        setFeedPhotos(validPhotos);
+        setFeedPhotos(photosWithProfiles);
       }
     } catch (error: any) {
       console.error('❌ Exception fetching feed photos:', error);

@@ -1,7 +1,7 @@
 import { TutorialPlan } from '@/services/openai';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -12,7 +12,85 @@ interface TutorialsPageProps {
 }
 
 export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
-  const [expandedTutorial, setExpandedTutorial] = useState<number | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
+  // Store completion state per issue
+  const [completedStepsByIssue, setCompletedStepsByIssue] = useState<Map<string, Set<number>>>(new Map());
+  const [materialsExpanded, setMaterialsExpanded] = useState(true);
+
+  // Get unique issues from tutorials
+  const issues = useMemo(() => {
+    return tutorialPlan.tutorials.map(t => t.issue);
+  }, [tutorialPlan.tutorials]);
+
+  // Get the selected tutorial
+  const selectedTutorial = useMemo(() => {
+    if (!selectedIssue) {
+      return tutorialPlan.tutorials[0] || null;
+    }
+    return tutorialPlan.tutorials.find(t => t.issue === selectedIssue) || null;
+  }, [selectedIssue, tutorialPlan.tutorials]);
+
+  // Get completed steps for current issue
+  const completedSteps = useMemo(() => {
+    if (!selectedIssue) return new Set<number>();
+    return completedStepsByIssue.get(selectedIssue) || new Set<number>();
+  }, [selectedIssue, completedStepsByIssue]);
+
+
+  // Set first issue as selected by default
+  React.useEffect(() => {
+    if (issues.length > 0 && !selectedIssue) {
+      setSelectedIssue(issues[0]);
+    }
+  }, [issues, selectedIssue]);
+
+
+  // Calculate progress
+  const progress = useMemo(() => {
+    if (!selectedTutorial || !selectedTutorial.steps || selectedTutorial.steps.length === 0) {
+      return 0;
+    }
+    return completedSteps.size / selectedTutorial.steps.length;
+  }, [selectedTutorial, completedSteps]);
+
+  // Toggle step completion
+  const toggleStepCompletion = (stepIndex: number) => {
+    if (!selectedIssue) return;
+    
+    setCompletedStepsByIssue(prev => {
+      const newMap = new Map(prev);
+      const currentSteps = newMap.get(selectedIssue) || new Set<number>();
+      const newSet = new Set(currentSteps);
+      
+      if (newSet.has(stepIndex)) {
+        newSet.delete(stepIndex);
+      } else {
+        newSet.add(stepIndex);
+      }
+      
+      newMap.set(selectedIssue, newSet);
+      return newMap;
+    });
+  };
+
+  // Toggle all steps completion
+  const toggleAllStepsCompletion = () => {
+    if (!selectedTutorial || !selectedTutorial.steps || !selectedIssue) return;
+    const allStepIndices = selectedTutorial.steps.map((_, index) => index);
+    const allCompleted = allStepIndices.every(index => completedSteps.has(index));
+    
+    setCompletedStepsByIssue(prev => {
+      const newMap = new Map(prev);
+      if (allCompleted) {
+        // Uncomplete all steps
+        newMap.set(selectedIssue, new Set<number>());
+      } else {
+        // Mark all steps as done
+        newMap.set(selectedIssue, new Set(allStepIndices));
+      }
+      return newMap;
+    });
+  };
 
   const handleClose = () => {
     if (onClose) {
@@ -22,136 +100,222 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
     }
   };
 
-  const getDifficultyColor = (difficulty?: string) => {
-    switch (difficulty) {
-      case 'Easy':
-        return '#4CAF50';
-      case 'Medium':
-        return '#FF9800';
-      case 'Hard':
-        return '#F44336';
-      default:
-        return '#999';
-    }
-  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
+      {/* Fixed Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleClose}>
           <Ionicons name="arrow-back" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Repair Plan</Text>
-          <Text style={styles.headerSubtitle}>{tutorialPlan.furnitureItem}</Text>
+          <Text style={styles.headerTitle}>Your Repair Plan</Text>
         </View>
+        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Tutorials List */}
-        <View style={styles.tutorialsContainer}>
-          <Text style={styles.tutorialsTitle}>Tutorials</Text>
-          {tutorialPlan.tutorials.map((tutorial, index) => {
-            const isExpanded = expandedTutorial === index;
-            return (
-              <View key={index} style={styles.tutorialCard}>
-                {/* Tutorial Header */}
-                <TouchableOpacity
-                  style={styles.tutorialHeader}
-                  onPress={() => setExpandedTutorial(isExpanded ? null : index)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.tutorialHeaderContent}>
-                    <Text style={styles.tutorialTitle}>{tutorial.title}</Text>
-                    <Text style={styles.tutorialIssue}>{tutorial.issue}</Text>
-                    <View style={styles.tutorialMeta}>
-                      {tutorial.difficulty && (
-                        <View style={[styles.difficultyBadge, { backgroundColor: getDifficultyColor(tutorial.difficulty) + '20', borderColor: getDifficultyColor(tutorial.difficulty) }]}>
-                          <Text style={[styles.difficultyText, { color: getDifficultyColor(tutorial.difficulty) }]}>
-                            {tutorial.difficulty}
-                          </Text>
-                        </View>
-                      )}
-                      {tutorial.estimatedTime && (
-                        <View style={styles.timeBadge}>
-                          <Ionicons name="time-outline" size={14} color="#999" />
-                          <Text style={styles.timeText}>{tutorial.estimatedTime}</Text>
-                        </View>
+      {/* Fixed Progress Bar */}
+      {selectedTutorial && selectedTutorial.steps && selectedTutorial.steps.length > 0 && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressStepsContainer}>
+            {selectedTutorial.steps.map((_, stepIndex) => {
+              const isCompleted = completedSteps.has(stepIndex);
+              const isLast = stepIndex === selectedTutorial.steps.length - 1;
+              // Line should be green if current step is completed (we've progressed past it)
+              const lineCompleted = isCompleted;
+              return (
+                <React.Fragment key={stepIndex}>
+                  <View style={styles.progressStepWrapper}>
+                    <View style={[
+                      styles.progressCheckbox,
+                      isCompleted && styles.progressCheckboxCompleted
+                    ]}>
+                      {isCompleted ? (
+                        <Ionicons name="checkmark" size={16} color="#000" />
+                      ) : (
+                        <View style={styles.progressCheckboxEmpty} />
                       )}
                     </View>
                   </View>
-                  <Ionicons
-                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                    size={24}
-                    color="#999"
-                  />
-                </TouchableOpacity>
+                  {!isLast && (
+                    <View style={styles.progressLineContainer}>
+                      <View style={[
+                        styles.progressLine,
+                        lineCompleted && styles.progressLineCompleted
+                      ]} />
+                    </View>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+          <Text style={styles.progressText}>
+            {completedSteps.size} / {selectedTutorial.steps.length} steps completed
+          </Text>
+        </View>
+      )}
 
-                {/* Tutorial Content - Expanded */}
-                {isExpanded && (
-                  <View style={styles.tutorialContent}>
-                    {/* Materials */}
-                    {tutorial.materials && tutorial.materials.length > 0 && (
-                      <View style={styles.section}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollViewContent}
+      >
+        {/* Issue Buttons */}
+        <View style={styles.issuesContainer}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.issuesScrollContent}
+          >
+            {issues.map((issue, index) => {
+              const isSelected = selectedIssue === issue;
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.issueButton,
+                    isSelected && styles.issueButtonSelected
+                  ]}
+                  onPress={() => setSelectedIssue(issue)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.issueButtonText,
+                    isSelected && styles.issueButtonTextSelected
+                  ]}>
+                    {issue}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Selected Tutorial Content */}
+        {selectedTutorial && (
+          <View style={styles.tutorialsContainer}>
+            <View style={styles.tutorialHeader}>
+              <View style={styles.tutorialHeaderContent}>
+                <Text style={styles.tutorialTitle}>{selectedTutorial.title}</Text>
+              </View>
+            </View>
+
+            <View style={styles.tutorialContent}>
+                {/* Materials */}
+                {selectedTutorial.materials && selectedTutorial.materials.length > 0 && (
+                  <View style={styles.section}>
+                    <View style={styles.materialsBox}>
+                      <TouchableOpacity
+                        style={styles.materialsHeader}
+                        onPress={() => setMaterialsExpanded(!materialsExpanded)}
+                        activeOpacity={0.7}
+                      >
                         <View style={styles.sectionTitle}>
-                          <Ionicons name="construct-outline" size={18} color="#007AFF" />
+                          <Ionicons name="construct-outline" size={18} color="#A8C686" />
                           <Text style={styles.sectionTitleText}>Materials Needed</Text>
                         </View>
+                        <Ionicons
+                          name={materialsExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color="#A8C686"
+                        />
+                      </TouchableOpacity>
+                      {materialsExpanded && (
                         <View style={styles.materialsList}>
-                          {tutorial.materials.map((material, matIndex) => (
+                          {selectedTutorial.materials.map((material, matIndex) => (
                             <View key={matIndex} style={styles.materialItem}>
-                              <Ionicons name="checkmark-circle-outline" size={16} color="#007AFF" />
+                              <Ionicons name="checkmark-circle-outline" size={16} color="#A8C686" />
                               <Text style={styles.materialText}>{material}</Text>
                             </View>
                           ))}
                         </View>
-                      </View>
-                    )}
-
-                    {/* Steps */}
-                    {tutorial.steps && tutorial.steps.length > 0 && (
-                      <View style={styles.section}>
-                        <View style={styles.sectionTitle}>
-                          <Ionicons name="list-outline" size={18} color="#007AFF" />
-                          <Text style={styles.sectionTitleText}>Steps</Text>
-                        </View>
-                        <View style={styles.stepsList}>
-                          {tutorial.steps.map((step, stepIndex) => (
-                            <View key={stepIndex} style={styles.stepItem}>
-                              <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>{stepIndex + 1}</Text>
-                              </View>
-                              <Text style={styles.stepText}>{step}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Tips */}
-                    {tutorial.tips && tutorial.tips.length > 0 && (
-                      <View style={styles.section}>
-                        <View style={styles.sectionTitle}>
-                          <Ionicons name="bulb-outline" size={18} color="#FFD700" />
-                          <Text style={styles.sectionTitleText}>Tips</Text>
-                        </View>
-                        <View style={styles.tipsList}>
-                          {tutorial.tips.map((tip, tipIndex) => (
-                            <View key={tipIndex} style={styles.tipItem}>
-                              <Ionicons name="star-outline" size={16} color="#FFD700" />
-                              <Text style={styles.tipText}>{tip}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    )}
+                      )}
+                    </View>
                   </View>
                 )}
-              </View>
-            );
-          })}
-        </View>
+
+                {/* Steps */}
+                {selectedTutorial.steps && selectedTutorial.steps.length > 0 && (
+                  <View style={styles.section}>
+                    <View style={styles.sectionTitleRow}>
+                      <View style={styles.sectionTitle}>
+                        <Ionicons name="list-outline" size={18} color="#A8C686" />
+                        <Text style={styles.sectionTitleText}>Steps</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={completedSteps.size === selectedTutorial.steps.length ? styles.completedBadge : styles.markDoneButton}
+                        onPress={toggleAllStepsCompletion}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons 
+                          name={completedSteps.size === selectedTutorial.steps.length ? "checkmark-circle" : "checkmark-circle-outline"} 
+                          size={18} 
+                          color="#A8C686" 
+                        />
+                        <Text style={completedSteps.size === selectedTutorial.steps.length ? styles.completedBadgeText : styles.markDoneButtonText}>
+                          {completedSteps.size === selectedTutorial.steps.length ? "Completed" : "Mark as Done"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.stepsList}>
+                      {selectedTutorial.steps.map((step, stepIndex) => {
+                        const isCompleted = completedSteps.has(stepIndex);
+                        // Only allow clicking:
+                        // 1. The current step (first incomplete step)
+                        // 2. The last completed step (to uncomplete it)
+                        const firstIncompleteIndex = selectedTutorial.steps.findIndex((_, idx) => !completedSteps.has(idx));
+                        const completedIndices = Array.from(completedSteps).sort((a, b) => b - a);
+                        const lastCompletedIndex = completedIndices.length > 0 ? completedIndices[0] : -1;
+                        
+                        // Allow clicking if it's the current step (first incomplete) or the last completed step
+                        const isClickable = stepIndex === firstIncompleteIndex || stepIndex === lastCompletedIndex;
+                        const isLocked = !isClickable;
+                        // Current step is the first incomplete step
+                        const isCurrentStep = !isCompleted && stepIndex === firstIncompleteIndex;
+                        
+                        return (
+                          <TouchableOpacity
+                            key={stepIndex}
+                            style={[
+                              styles.stepBox,
+                              isCurrentStep && styles.stepBoxCurrent,
+                              isLocked && styles.stepBoxLocked
+                            ]}
+                            onPress={() => !isLocked && toggleStepCompletion(stepIndex)}
+                            activeOpacity={isLocked ? 1 : 0.7}
+                            disabled={isLocked}
+                          >
+                            <View style={[
+                              styles.stepNumber,
+                              isCompleted && styles.stepNumberCompleted,
+                              isCurrentStep && styles.stepNumberCurrent,
+                              isLocked && styles.stepNumberLocked
+                            ]}>
+                              {isLocked ? (
+                                <Ionicons name="lock-closed" size={16} color="#666" />
+                              ) : isCompleted ? (
+                                <Ionicons name="checkmark" size={18} color="#A8C686" />
+                              ) : (
+                                <Text style={[
+                                  styles.stepNumberText,
+                                  isCurrentStep && styles.stepNumberTextCurrent
+                                ]}>{stepIndex + 1}</Text>
+                              )}
+                            </View>
+                            <Text style={[
+                              styles.stepText,
+                              isCompleted && styles.stepTextCompleted,
+                              isLocked && styles.stepTextLocked
+                            ]}>{step}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+            </View>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -165,29 +329,36 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: 70,
     paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+    backgroundColor: '#000',
+    zIndex: 10,
   },
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 4,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 44,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#FFF',
     marginBottom: 4,
+    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 14,
@@ -196,15 +367,100 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollViewContent: {
+    paddingBottom: 20,
+  },
+  issuesContainer: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  issuesScrollContent: {
+    gap: 12,
+    paddingRight: 20,
+  },
+  issueButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 1,
+    borderColor: '#FFF',
+  },
+  issueButtonSelected: {
+    backgroundColor: 'rgba(168, 198, 134, 0.3)',
+    borderColor: '#A8C686',
+  },
+  issueButtonText: {
+    fontSize: 14,
+    color: '#CCC',
+    fontWeight: '500',
+  },
+  issueButtonTextSelected: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  progressContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    backgroundColor: '#000',
+    zIndex: 10,
+    borderTopWidth: 0,
+  },
+  progressStepsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 10,
+  },
+  progressStepWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressCheckbox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 2,
+    borderColor: '#666',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressCheckboxCompleted: {
+    backgroundColor: '#A8C686',
+    borderColor: '#A8C686',
+  },
+  progressCheckboxEmpty: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#666',
+  },
+  progressLineContainer: {
+    flex: 1,
+    height: 2,
+    marginHorizontal: 4,
+    justifyContent: 'center',
+  },
+  progressLine: {
+    height: 2,
+    backgroundColor: '#666',
+  },
+  progressLineCompleted: {
+    backgroundColor: '#A8C686',
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+  },
   tutorialsContainer: {
     padding: 20,
-    paddingTop: 0,
-  },
-  tutorialsTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 16,
   },
   tutorialCard: {
     backgroundColor: '#1A1A1A',
@@ -219,68 +475,86 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
+    paddingBottom: 12,
   },
   tutorialHeaderContent: {
     flex: 1,
     marginRight: 12,
   },
   tutorialTitle: {
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFF',
-    marginBottom: 4,
-  },
-  tutorialIssue: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 8,
-  },
-  tutorialMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  difficultyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  difficultyText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  timeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  timeText: {
-    fontSize: 12,
-    color: '#999',
   },
   tutorialContent: {
     padding: 16,
     paddingTop: 0,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
   },
   section: {
     marginBottom: 20,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   sectionTitle: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
   },
   sectionTitleText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#FFF',
   },
+  completedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(168, 198, 134, 0.2)',
+  },
+  completedBadgeText: {
+    fontSize: 12,
+    color: '#A8C686',
+    fontWeight: '600',
+  },
+  markDoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 1,
+    borderColor: '#A8C686',
+  },
+  markDoneButtonText: {
+    fontSize: 12,
+    color: '#A8C686',
+    fontWeight: '600',
+  },
+  materialsBox: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 1,
+    borderColor: '#A8C686',
+  },
+  materialsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   materialsList: {
     gap: 8,
+    marginTop: 12,
   },
   materialItem: {
     flexDirection: 'row',
@@ -289,52 +563,75 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   materialText: {
-    fontSize: 14,
-    color: '#CCC',
+    fontSize: 16,
+    color: '#FFF',
     flex: 1,
   },
   stepsList: {
     gap: 12,
   },
-  stepItem: {
+  stepBox: {
     flexDirection: 'row',
     gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 1,
+    borderColor: '#A8C686',
+    alignItems: 'flex-start',
+  },
+  stepBoxCurrent: {
+    backgroundColor: 'rgba(168, 198, 134, 0.3)',
+    borderColor: '#A8C686',
+  },
+  stepBoxLocked: {
+    opacity: 0.5,
+    borderColor: '#666',
   },
   stepNumber: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#FFFFFF1A',
+    borderWidth: 1,
+    borderColor: '#666',
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
+  stepNumberCurrent: {
+    backgroundColor: '#A8C686',
+    borderColor: '#A8C686',
+  },
+  stepNumberCompleted: {
+    backgroundColor: 'transparent',
+    borderColor: '#A8C686',
+  },
+  stepNumberLocked: {
+    backgroundColor: '#333',
+    borderColor: '#666',
+  },
   stepNumberText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#CCC',
+  },
+  stepNumberTextCurrent: {
+    color: '#000',
   },
   stepText: {
-    fontSize: 14,
-    color: '#CCC',
+    fontSize: 16,
+    color: '#FFF',
     flex: 1,
-    lineHeight: 20,
-    paddingTop: 4,
+    lineHeight: 22,
   },
-  tipsList: {
-    gap: 8,
+  stepTextCompleted: {
+    textDecorationLine: 'line-through',
+    opacity: 0.7,
   },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    paddingLeft: 4,
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#CCC',
-    flex: 1,
-    lineHeight: 20,
+  stepTextLocked: {
+    color: '#666',
   },
 });
 

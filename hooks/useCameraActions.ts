@@ -7,7 +7,7 @@ import { CameraView } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
-import { Alert, Dimensions, Image } from 'react-native';
+import { Alert, Image } from 'react-native';
 
 type CameraMode = 'scan' | 'post';
 
@@ -84,6 +84,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
       setPreviewUri(uri);
       setCurrentPhotoUri(uri);
       setShowPhotoSheet(true);
+      setSimilarPhotos([]); // Clear old similar photos immediately
       
       // Analyze the furniture (start with simple mode only)
       setIsAnalyzing(true);

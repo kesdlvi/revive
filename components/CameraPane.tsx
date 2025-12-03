@@ -2,11 +2,12 @@ import { PhotoBottomSheet } from '@/components/PhotoBottomSheet';
 import { PostUploadScreen } from '@/components/PostUploadScreen';
 import { PreviewOverlay } from '@/components/PreviewOverlay';
 import { ScanFrame } from '@/components/ScanFrame';
+import { useAuth } from '@/contexts/AuthContext';
 import { FurnitureImage } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
-import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, PanResponder, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -74,6 +75,8 @@ export function CameraPane({
   postDescription = '',
   onPostDescriptionChange,
 }: CameraPaneProps) {
+  const { user } = useAuth();
+
   return (
     <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       <CameraView 
@@ -190,6 +193,7 @@ export function CameraPane({
             </TouchableOpacity>
           )}
 
+
           {/* Capture button and mode menu container */}
           <View style={styles.cameraBottomContainer}>
             {/* Capture button */}
@@ -206,7 +210,7 @@ export function CameraPane({
                 style={styles.imagePickerButton} 
                 onPress={onPickImageFromLibrary}
               >
-                <Ionicons name="images-outline" size={24} color="#FFF" />
+                <Ionicons name="images-outline" size={28} color="#FFF" />
               </TouchableOpacity>
 
               {/* Scan and Post buttons */}
@@ -238,6 +242,7 @@ export function CameraPane({
         <PreviewOverlay
           uri={previewUri}
           onClose={onClearPreview}
+          isAnalyzing={isAnalyzing || loadingSimilar}
         />
       )}
 
@@ -245,7 +250,16 @@ export function CameraPane({
       {showPhotoSheet && cameraMode === 'scan' && (
         <PhotoBottomSheet
           onClose={onClearPreview}
-          samplePhotos={similarPhotos.map((p, index) => ({ id: index + 1, uri: p.public_url, height: 300 }))}
+          samplePhotos={similarPhotos.map((p, index) => ({ 
+            id: index + 1, 
+            uri: p.public_url, 
+            height: 300,
+            username: p.username,
+            display_name: p.display_name,
+            avatar_url: p.avatar_url,
+            user_id: p.user_id,
+          }))}
+          currentUserId={user?.id}
           furnitureAnalysis={furnitureAnalysis}
           isAnalyzing={isAnalyzing || loadingSimilar}
           onRequestDetailedAnalysis={onRequestDetailedAnalysis}
@@ -265,6 +279,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'black',
+  },
+  cameraContainer: {
+    width: '100%',
+    height: '100%',
   },
   camera: { 
     width: SCREEN_WIDTH,
@@ -299,6 +317,7 @@ const styles = StyleSheet.create({
   imagePickerButton: {
     position: 'absolute',
     left: 20,
+    top: '55%',
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -342,7 +361,7 @@ const styles = StyleSheet.create({
     gap: 40,
     paddingHorizontal: 20,
     paddingTop: 25,
-    paddingBottom: 25,
+    paddingBottom: 35,
     paddingVertical: 20,
     position: 'relative',
   },
@@ -359,12 +378,12 @@ const styles = StyleSheet.create({
     // No background, just bold text
   },
   cameraModeText: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: '#AAA',
   },
   cameraModeTextActive: {
-    color: '#FFF',
+    color: '#8AA64E',
     fontWeight: '700',
   },
   postUploadOverlay: {

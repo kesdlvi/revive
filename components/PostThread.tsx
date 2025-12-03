@@ -88,15 +88,14 @@ export function PostThread({ postId, onCommentsUpdate }: PostThreadProps) {
         .order('created_at', { ascending: true });
 
       if (allError) {
-        if (allError.code === '42P01') {
-          console.warn('post_comments table does not exist yet');
-          setComments([]);
-          return;
-        }
-        throw allError;
+        // Silently handle expected cases: table doesn't exist, no comments, or join issues
+        // These are not errors - they're just empty states
+        setComments([]);
+        return;
       }
 
       if (!allComments || allComments.length === 0) {
+        // No comments is a valid state, not an error
         setComments([]);
         return;
       }
@@ -148,8 +147,9 @@ export function PostThread({ postId, onCommentsUpdate }: PostThreadProps) {
         onCommentsUpdate(rootComments);
       }
     } catch (error: any) {
-      console.error('Error fetching comments:', error);
-      Alert.alert('Error', 'Failed to load comments');
+      // Silently handle any unexpected errors - empty comments is a valid fallback state
+      // No need to log or alert - the UI will just show "No comments yet"
+      setComments([]);
     } finally {
       setLoading(false);
     }

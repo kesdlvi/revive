@@ -1,6 +1,8 @@
 import { CameraPane } from '@/components/CameraPane';
 import { FeedPane } from '@/components/FeedPane';
+import { HomeIcon } from '@/components/HomeIcon';
 import { NailIcon } from '@/components/NailIcon';
+import { PersonIcon } from '@/components/PersonIcon';
 import { PostThread } from '@/components/PostThread';
 import { ProfilePane } from '@/components/ProfilePane';
 import { TutorialsPage } from '@/components/TutorialsPage';
@@ -29,7 +31,7 @@ export default function SwipeScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeProfileTab, setActiveProfileTab] = useState<'Created' | 'Saved'>('Created');
   const [selectedPhoto, setSelectedPhoto] = useState<FurnitureImage | null>(null);
-  const [photoOwner, setPhotoOwner] = useState<{ username?: string; display_name?: string } | null>(null);
+  const [photoOwner, setPhotoOwner] = useState<{ username?: string; display_name?: string; avatar_url?: string } | null>(null);
   const [loadingOwner, setLoadingOwner] = useState(false);
   const [savedPhotos, setSavedPhotos] = useState<Set<string>>(new Set());
   const [selectedPhotoDimensions, setSelectedPhotoDimensions] = useState<{ width: number; height: number } | null>(null);
@@ -95,7 +97,7 @@ export default function SwipeScreen() {
   const photoDimensions = useImageDimensions(feedPhotos);
 
   // Profile data
-  const profileData = useProfile();
+  const { profileData, refetchProfile } = useProfile();
 
   // Camera actions
   const {
@@ -161,7 +163,7 @@ export default function SwipeScreen() {
         try {
           const { data, error } = await supabase
             .from('profiles')
-            .select('username, display_name')
+            .select('username, display_name, avatar_url')
             .eq('id', selectedPhoto.user_id)
             .single();
 
@@ -369,6 +371,7 @@ export default function SwipeScreen() {
             onPhotoPress={handlePhotoPress}
             savedPhotos={savedPhotos}
             onSaveToggle={handleSaveToggle}
+            currentUserId={user?.id}
           />
         )}
 
@@ -418,7 +421,14 @@ export default function SwipeScreen() {
                 ) : (
                   <View style={styles.photoDetailOwner}>
                     <View style={styles.photoDetailOwnerAvatar}>
-                      <Ionicons name="person" size={24} color="#666" />
+                      {photoOwner?.avatar_url ? (
+                        <Image 
+                          source={{ uri: photoOwner.avatar_url }} 
+                          style={styles.photoDetailOwnerAvatarImage}
+                        />
+                      ) : (
+                        <Ionicons name="person" size={24} color="#666" />
+                      )}
               </View>
                     <View style={styles.photoDetailOwnerInfo}>
                       <Text style={styles.photoDetailOwnerName}>
@@ -430,6 +440,7 @@ export default function SwipeScreen() {
               </Text>
                       )}
           </View>
+                    {selectedPhoto && selectedPhoto.user_id !== user?.id && (
                     <TouchableOpacity 
                       style={styles.photoDetailSaveButtonInline}
                       onPress={async () => {
@@ -440,10 +451,11 @@ export default function SwipeScreen() {
                     >
                       <NailIcon 
                       size={24} 
-                        color="#FFF" 
+                          color={selectedPhoto && savedPhotos.has(selectedPhoto.id) ? "#8AA64E" : "#FFF"} 
                         filled={selectedPhoto ? savedPhotos.has(selectedPhoto.id) : false} 
                       />
                     </TouchableOpacity>
+                    )}
                 </View>
                 )}
                 
@@ -590,6 +602,7 @@ export default function SwipeScreen() {
             onPhotoPress={handlePhotoPress}
             savedPhotos={savedPhotos}
             onSaveToggle={handleSaveToggle}
+            onProfileUpdate={refetchProfile}
           />
         )}
           
@@ -600,14 +613,10 @@ export default function SwipeScreen() {
               style={styles.navButton} 
               onPress={goToFeed}
             >
-              <Ionicons 
-                name="home-outline" 
-                size={28} 
+              <HomeIcon 
+                size={30} 
                 color={getNavColor('feed')} 
               />
-              <Text style={[styles.navLabel, isNavActive('feed') && styles.navLabelActive]}>
-                Feed
-              </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -627,14 +636,10 @@ export default function SwipeScreen() {
               style={styles.navButton} 
               onPress={goToProfile}
             >
-              <Ionicons 
-                name="person-outline" 
-                size={28} 
+              <PersonIcon 
+                size={30} 
                 color={getNavColor('profile')} 
               />
-              <Text style={[styles.navLabel, isNavActive('profile') && styles.navLabelActive]}>
-                Profile
-              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -775,6 +780,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1A1A1A',
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  photoDetailOwnerAvatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   photoDetailOwnerInfo: {
     flex: 1,

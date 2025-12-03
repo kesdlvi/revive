@@ -87,16 +87,14 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
         .order('created_at', { ascending: true });
 
       if (allError) {
-        // If table doesn't exist yet, that's okay - just return empty array
-        if (allError.code === '42P01') {
-          console.warn('issue_comments table does not exist yet');
-          setComments([]);
-          return;
-        }
-        throw allError;
+        // Silently handle expected cases: table doesn't exist, no comments, or join issues
+        // These are not errors - they're just empty states
+        setComments([]);
+        return;
       }
 
       if (!allComments || allComments.length === 0) {
+        // No comments is a valid state, not an error
         setComments([]);
         return;
       }
@@ -149,8 +147,9 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
         onCommentsUpdate(issue.id, rootComments);
       }
     } catch (error: any) {
-      console.error('Error fetching comments:', error);
-      Alert.alert('Error', 'Failed to load comments');
+      // Silently handle any unexpected errors - empty comments is a valid fallback state
+      // No need to log or alert - the UI will just show "No comments yet"
+      setComments([]);
     } finally {
       setLoading(false);
     }

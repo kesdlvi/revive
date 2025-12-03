@@ -2,9 +2,7 @@ import { NailIcon } from '@/components/NailIcon';
 import { FurnitureImage } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-const { width } = Dimensions.get('window');
+import { ActivityIndicator, Animated, Image, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface FeedPaneProps {
   scale: Animated.Value;
@@ -23,6 +21,7 @@ interface FeedPaneProps {
   onPhotoPress: (photo: FurnitureImage) => void;
   savedPhotos: Set<string>;
   onSaveToggle: (photoId: string) => Promise<void>;
+  currentUserId?: string;
 }
 
 export function FeedPane({
@@ -38,6 +37,7 @@ export function FeedPane({
   onPhotoPress,
   savedPhotos,
   onSaveToggle,
+  currentUserId,
 }: FeedPaneProps) {
   const toggleSave = async (photoId: string, e: any) => {
     e.stopPropagation();
@@ -97,48 +97,84 @@ export function FeedPane({
           <View style={styles.masonryContainer}>
             <View style={styles.column}>
               {columns.left.map(photo => (
-                <TouchableOpacity 
-                  key={photo.id} 
-                  style={styles.photoCard}
-                  onPress={() => onPhotoPress(photo)}
-                  activeOpacity={0.9}
-                >
-                  <Image 
-                    source={{ uri: photo.public_url }} 
-                    style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
-                    resizeMode="contain"
-                    fadeDuration={150}
-                  />
+                <View key={photo.id} style={styles.photoCard}>
                   <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={(e) => toggleSave(photo.id, e)}
+                    onPress={() => onPhotoPress(photo)}
+                    activeOpacity={0.9}
                   >
-                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
+                    <Image 
+                      source={{ uri: photo.public_url }} 
+                      style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
+                      resizeMode="contain"
+                      fadeDuration={150}
+                    />
+                    {photo.user_id !== currentUserId && (
+                      <TouchableOpacity 
+                        style={styles.savedButton}
+                        onPress={(e) => toggleSave(photo.id, e)}
+                      >
+                        <NailIcon size={24} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
-                </TouchableOpacity>
+                  {/* User info */}
+                  <View style={styles.userInfo}>
+                    {photo.avatar_url ? (
+                      <Image 
+                        source={{ uri: photo.avatar_url }} 
+                        style={styles.avatar}
+                      />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person" size={16} color="#666" />
+                      </View>
+                    )}
+                    <Text style={styles.username} numberOfLines={1}>
+                      {photo.display_name || photo.username || 'Unknown'}
+                    </Text>
+                  </View>
+                </View>
               ))}
             </View>
             <View style={styles.column}>
               {columns.right.map(photo => (
-                <TouchableOpacity 
-                  key={photo.id} 
-                  style={styles.photoCard}
-                  onPress={() => onPhotoPress(photo)}
-                  activeOpacity={0.9}
-                >
-                  <Image 
-                    source={{ uri: photo.public_url }} 
-                    style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
-                    resizeMode="contain"
-                    fadeDuration={150}
-                  />
+                <View key={photo.id} style={styles.photoCard}>
                   <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={(e) => toggleSave(photo.id, e)}
+                    onPress={() => onPhotoPress(photo)}
+                    activeOpacity={0.9}
                   >
-                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
+                    <Image 
+                      source={{ uri: photo.public_url }} 
+                      style={[styles.photo, { width: columns.columnWidth, height: photo.height }]} 
+                      resizeMode="contain"
+                      fadeDuration={150}
+                    />
+                    {photo.user_id !== currentUserId && (
+                      <TouchableOpacity 
+                        style={styles.savedButton}
+                        onPress={(e) => toggleSave(photo.id, e)}
+                      >
+                        <NailIcon size={24} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                      </TouchableOpacity>
+                    )}
                   </TouchableOpacity>
-                </TouchableOpacity>
+                  {/* User info */}
+                  <View style={styles.userInfo}>
+                    {photo.avatar_url ? (
+                      <Image 
+                        source={{ uri: photo.avatar_url }} 
+                        style={styles.avatar}
+                      />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person" size={16} color="#666" />
+                      </View>
+                    )}
+                    <Text style={styles.username} numberOfLines={1}>
+                      {photo.display_name || photo.username || 'Unknown'}
+                    </Text>
+                  </View>
+                </View>
               ))}
             </View>
           </View>
@@ -172,11 +208,6 @@ const styles = StyleSheet.create({
     height: 52,
     borderWidth: 1,
     borderColor: '#333',
-    shadowColor: '#FFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   searchIcon: {
     marginRight: 12,
@@ -210,7 +241,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#0F0F0F',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -261,6 +291,31 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 8,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  avatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  avatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  username: {
+    fontSize: 12,
+    color: '#AAA',
+    fontWeight: '500',
+    flex: 1,
   },
 });
 

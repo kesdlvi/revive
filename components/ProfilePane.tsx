@@ -1,19 +1,21 @@
-import { EditIcon } from '@/components/EditIcon';
 import { NailIcon } from '@/components/NailIcon';
+import { PencilIcon } from '@/components/PencilIcon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImageDimensions } from '@/hooks/useImageDimensions';
 import { supabase } from '@/lib/supabase';
+import { uploadProfilePhoto } from '@/services/profilePhoto';
 import { getSavedPosts } from '@/services/savedPosts';
 import { FurnitureImage } from '@/types/furniture';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
 interface ProfilePaneProps {
   scale: Animated.Value;
-  profileData: { username?: string } | null;
+  profileData: { username?: string; avatar_url?: string } | null;
   userEmail?: string;
   userCreatedAt?: string;
   activeProfileTab: 'Created' | 'Saved';
@@ -22,6 +24,7 @@ interface ProfilePaneProps {
   onPhotoPress?: (photo: FurnitureImage) => void;
   savedPhotos: Set<string>;
   onSaveToggle: (photoId: string) => Promise<void>;
+  onProfileUpdate?: () => void;
 }
 
 export function ProfilePane({
@@ -35,8 +38,10 @@ export function ProfilePane({
   onPhotoPress,
   savedPhotos,
   onSaveToggle,
+  onProfileUpdate,
 }: ProfilePaneProps) {
   const { user } = useAuth();
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [savedPosts, setSavedPosts] = useState<FurnitureImage[]>([]);
   const [createdPosts, setCreatedPosts] = useState<FurnitureImage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,6 +116,47 @@ export function ProfilePane({
 
   const [showEditMenu, setShowEditMenu] = useState(false);
 
+  const handleChangeProfilePhoto = async () => {
+    if (!user?.id) return;
+
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your photo library');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsUploadingAvatar(true);
+        const uploadResult = await uploadProfilePhoto(result.assets[0].uri, user.id);
+        
+        if (uploadResult.success) {
+          // Refresh profile data
+          if (onProfileUpdate) {
+            onProfileUpdate();
+          }
+          Alert.alert('Success', 'Profile photo updated!');
+        } else {
+          Alert.alert('Error', uploadResult.error || 'Failed to upload profile photo');
+        }
+        setIsUploadingAvatar(false);
+      }
+    } catch (error: any) {
+      console.error('Error changing profile photo:', error);
+      Alert.alert('Error', 'Failed to change profile photo');
+      setIsUploadingAvatar(false);
+    }
+  };
+
   return (
     <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
       {/* Top Bar with Edit Button */}
@@ -121,7 +167,7 @@ export function ProfilePane({
             style={styles.editButton}
             onPress={() => setShowEditMenu(!showEditMenu)}
           >
-            <EditIcon size={26} color="#FFF" />
+            <PencilIcon size={26} color="#FFF" />
           </TouchableOpacity>
           
           {/* Edit Menu Bubble */}
@@ -129,9 +175,9 @@ export function ProfilePane({
             <View style={styles.editMenu}>
               <TouchableOpacity 
                 style={styles.menuItem}
-                onPress={() => {
+                onPress={async () => {
                   setShowEditMenu(false);
-                  // Change profile photo functionality will be implemented later
+                  await handleChangeProfilePhoto();
                 }}
               >
                 <Text style={styles.menuItemText}>Change profile photo</Text>
@@ -153,9 +199,22 @@ export function ProfilePane({
 
       {/* Profile Header */}
       <View style={styles.profileHeader}>
-        <View style={styles.profileAvatar}>
-          <Ionicons name="person" size={60} color="#666" />
-        </View>
+        <TouchableOpacity 
+          style={styles.profileAvatar}
+          onPress={handleChangeProfilePhoto}
+          disabled={isUploadingAvatar}
+        >
+          {isUploadingAvatar ? (
+            <ActivityIndicator size="large" color="#666" />
+          ) : profileData?.avatar_url ? (
+            <Image 
+              source={{ uri: profileData.avatar_url }} 
+              style={styles.profileAvatarImage}
+            />
+          ) : (
+            <Ionicons name="person" size={60} color="#666" />
+          )}
+        </TouchableOpacity>
         <Text style={styles.profileName}>
           {profileData?.username ? `@${profileData.username}` : userEmail}
         </Text>
@@ -218,12 +277,14 @@ export function ProfilePane({
                     resizeMode="contain"
                     fadeDuration={150}
                   />
-                  <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={(e) => toggleSave(photo.id, e)}
-                  >
-                    <NailIcon size={20} color="white" filled={savedPhotos.has(photo.id)} />
-                  </TouchableOpacity>
+                  {activeProfileTab === 'Saved' && (
+                    <TouchableOpacity 
+                      style={styles.savedButton}
+                      onPress={(e) => toggleSave(photo.id, e)}
+                    >
+                      <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -241,12 +302,14 @@ export function ProfilePane({
                     resizeMode="contain"
                     fadeDuration={150}
                   />
-                  <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={(e) => toggleSave(photo.id, e)}
-                  >
-                    <NailIcon size={20} color="white" filled={savedPhotos.has(photo.id)} />
-                  </TouchableOpacity>
+                  {activeProfileTab === 'Saved' && (
+                    <TouchableOpacity 
+                      style={styles.savedButton}
+                      onPress={(e) => toggleSave(photo.id, e)}
+                    >
+                      <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                    </TouchableOpacity>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -339,6 +402,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    overflow: 'hidden',
+  },
+  profileAvatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   profileName: {
     fontSize: 20,

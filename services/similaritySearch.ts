@@ -26,15 +26,38 @@ export async function searchSimilarImages(
       });
       
       if (!error && data && data.length > 0) {
-        // Convert to FurnitureImage format
-        return data.map((item: any) => ({
-          id: item.id,
-          user_id: item.user_id,
-          public_url: item.public_url,
-          item: item.item,
-          style: item.style,
-          created_at: new Date().toISOString(), // RPC doesn't return this, but it's not critical
-        }));
+        // Fetch profile data for all unique user IDs
+        const userIds = [...new Set(data.map((item: any) => item.user_id).filter(Boolean))];
+        const profilesMap = new Map();
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url')
+            .in('id', userIds);
+          
+          if (profiles) {
+            profiles.forEach((profile: any) => {
+              profilesMap.set(profile.id, profile);
+            });
+          }
+        }
+        
+        // Convert to FurnitureImage format with profile data
+        return data.map((item: any) => {
+          const profile = profilesMap.get(item.user_id);
+          return {
+            id: item.id,
+            user_id: item.user_id,
+            public_url: item.public_url,
+            item: item.item,
+            style: item.style,
+            created_at: new Date().toISOString(), // RPC doesn't return this, but it's not critical
+            username: profile?.username,
+            display_name: profile?.display_name,
+            avatar_url: profile?.avatar_url,
+          };
+        });
       }
     } catch (embeddingError) {
       console.warn('Vector similarity search failed:', embeddingError);
@@ -60,7 +83,34 @@ export async function searchSimilarImages(
       throw error;
     }
 
-    return data || [];
+    // Fetch profile data for all unique user IDs
+    const validItems = data || [];
+    const userIds = [...new Set(validItems.map((item: any) => item.user_id).filter(Boolean))];
+    const profilesMap = new Map();
+    
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', userIds);
+      
+      if (profiles) {
+        profiles.forEach((profile: any) => {
+          profilesMap.set(profile.id, profile);
+        });
+      }
+    }
+    
+    // Map profile data to items
+    return validItems.map((item: any) => {
+      const profile = item.user_id ? profilesMap.get(item.user_id) : null;
+      return {
+        ...item,
+        username: profile?.username,
+        display_name: profile?.display_name,
+        avatar_url: profile?.avatar_url,
+      };
+    });
     
     // Return empty array if vector search didn't return results
   } catch (error: any) {

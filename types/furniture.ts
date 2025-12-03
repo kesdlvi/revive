@@ -21,6 +21,9 @@ export interface FurnitureImage {
   material?: string;
   color?: string;
   created_at: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
 }
 
 export type ViewType = 'feed' | 'camera' | 'profile';

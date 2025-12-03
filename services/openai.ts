@@ -91,7 +91,6 @@ export async function analyzeFurnitureDetailed(imageUri: string): Promise<Detail
               text: `Analyze this furniture image and provide detailed information. Return a JSON object with the following structure:
 {
   "item": "furniture item name",
-  "style": "style description (e.g., mid-century modern, Scandinavian, etc.)",
   "material": "primary material",
   "color": "primary color",
   "condition": "overall condition description",
@@ -100,7 +99,7 @@ export async function analyzeFurnitureDetailed(imageUri: string): Promise<Detail
   "description": "brief description of the item"
 }
 
-If no repairs are needed, set "repairNeeded" to an empty array. Generate 3-5 specific search queries for repair tutorials if repairs are needed.`,
+If no repairs are needed, set "repairNeeded" to an empty array. Generate 3-5 specific search queries for repair tutorials if repairs are needed. IMPORTANT: Each repair issue in "repairNeeded" must have its first word capitalized (e.g., "Loose joints", "Scratched surface", "Broken leg").`,
             },
             {
               type: 'image_url',
@@ -121,6 +120,15 @@ If no repairs are needed, set "repairNeeded" to an empty array. Generate 3-5 spe
     }
 
     const analysis = JSON.parse(content) as DetailedAnalysisResult;
+    
+    // Ensure first word of each repair issue is capitalized
+    if (analysis.repairNeeded && analysis.repairNeeded.length > 0) {
+      analysis.repairNeeded = analysis.repairNeeded.map(issue => {
+        if (!issue || issue.length === 0) return issue;
+        return issue.charAt(0).toUpperCase() + issue.slice(1);
+      });
+    }
+    
     return analysis;
   } catch (error: any) {
     console.error('Error in detailed analysis:', error);
@@ -165,7 +173,7 @@ export async function generateEmbedding(
 ): Promise<number[]> {
   try {
     // Create descriptive text from analysis
-    const text = `${analysis.item || ''} ${analysis.style || ''} ${analysis.material || ''} ${analysis.description || ''}`.trim();
+    const text = `${analysis.item || ''} ${analysis.material || ''} ${analysis.description || ''}`.trim();
     
     if (!text) {
       throw new Error('Cannot generate embedding from empty analysis');
@@ -232,15 +240,12 @@ Return a JSON object with this structure:
       "issue": "exact issue name from the list",
       "title": "Descriptive tutorial title",
       "steps": ["step 1", "step 2", "step 3", ...],
-      "materials": ["material 1", "material 2", ...],
-      "tips": ["helpful tip 1", "helpful tip 2", ...],
-      "estimatedTime": "e.g., 30 minutes, 2 hours, etc.",
-      "difficulty": "Easy" | "Medium" | "Hard"
+      "materials": ["specific material 1 with brand/type if relevant", "specific material 2 with brand/type if relevant", ...]
     }
   ]
 }
 
-Generate one tutorial for each issue. Make the steps clear, actionable, and beginner-friendly. Include all necessary materials and helpful tips.`,
+Generate one tutorial for each issue. Make the steps clear, actionable, and beginner-friendly. For materials, be very specific - include exact product names, brands, types, sizes, and quantities when relevant (e.g., "Gorilla Wood Glue, 4 oz", "220-grit sandpaper", "Minwax Polyurethane, satin finish, 1 quart"). Include all necessary materials.`,
         },
       ],
       response_format: { type: 'json_object' },

@@ -1,8 +1,8 @@
 import { EditIcon } from '@/components/EditIcon';
 import { NailIcon } from '@/components/NailIcon';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 const { height } = Dimensions.get('window');
@@ -11,6 +11,10 @@ interface Photo {
   id: number;
   uri: string;
   height: number;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  user_id?: string;
 }
 
 interface PhotoBottomSheetProps {
@@ -21,6 +25,7 @@ interface PhotoBottomSheetProps {
   onRequestDetailedAnalysis?: () => void;
   onGeneratePlan?: (selectedIssues: string[]) => void;
   isGeneratingPlan?: boolean;
+  currentUserId?: string;
 }
 
 type TabType = 'Inspo' | 'Revive';
@@ -30,12 +35,32 @@ type TabType = 'Inspo' | 'Revive';
  * Features two tabs (Inspo, Revive) with Pinterest-style masonry layout.
  * Can be dragged up to expand, but cannot be dismissed by dragging down.
  */
-export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis, onGeneratePlan, isGeneratingPlan }: PhotoBottomSheetProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('Inspo');
+export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis, onGeneratePlan, isGeneratingPlan, currentUserId }: PhotoBottomSheetProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('Revive');
   const [selectedRepairs, setSelectedRepairs] = useState<Set<string>>(new Set());
   const [customIssue, setCustomIssue] = useState('');
   const [customIssues, setCustomIssues] = useState<string[]>([]);
   const [savedPhotos, setSavedPhotos] = useState<Set<number>>(new Set());
+  const lastAnalysisId = useRef<string | undefined>(undefined);
+
+  // Automatically run detailed analysis when Revive tab is active and analysis hasn't been requested yet
+  useEffect(() => {
+    // Reset flag if this is a new furniture analysis (different item)
+    const currentAnalysisId = furnitureAnalysis?.item;
+    if (currentAnalysisId !== lastAnalysisId.current) {
+      lastAnalysisId.current = currentAnalysisId;
+    }
+
+    if (
+      activeTab === 'Revive' &&
+      onRequestDetailedAnalysis &&
+      furnitureAnalysis?.repairNeeded === undefined &&
+      !isAnalyzing &&
+      furnitureAnalysis?.item // Only run if we have basic analysis
+    ) {
+      onRequestDetailedAnalysis();
+    }
+  }, [activeTab, onRequestDetailedAnalysis, furnitureAnalysis?.repairNeeded, furnitureAnalysis?.item, isAnalyzing]);
 
   const toggleSave = (photoId: number) => {
     setSavedPhotos(prev => {
@@ -158,10 +183,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   <Text style={styles.analysisText}>
                     {furnitureAnalysis.item || 'Unknown furniture'}
                   </Text>
-                  {furnitureAnalysis.style && (
+                  {furnitureAnalysis.material && (
                     <Text style={styles.analysisSubtext}>
-                      {furnitureAnalysis.style}
-                      {furnitureAnalysis.material && ` • ${furnitureAnalysis.material}`}
+                      {furnitureAnalysis.material}
                     </Text>
                   )}
                 </View>
@@ -175,44 +199,38 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
           {/* Tabs */}
           <View style={styles.tabContainer}>
             <TouchableOpacity
-              style={[styles.tab, activeTab === 'Inspo' && styles.activeTab]}
-              onPress={() => setActiveTab('Inspo')}
-            >
-              <Text style={[styles.tabText, activeTab === 'Inspo' && styles.activeTabText]}>Inspo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.tab, activeTab === 'Revive' && styles.activeTab]}
               onPress={() => setActiveTab('Revive')}
             >
               <Text style={[styles.tabText, activeTab === 'Revive' && styles.activeTabText]}>Revive</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'Inspo' && styles.activeTab]}
+              onPress={() => setActiveTab('Inspo')}
+            >
+              <Text style={[styles.tabText, activeTab === 'Inspo' && styles.activeTabText]}>Inspo</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Content based on active tab - keep both mounted to prevent image reload */}
         {/* Revive Tab Content */}
-        <ScrollView
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={[styles.photoGridContainer, activeTab !== 'Revive' && styles.hidden]}
-          showsVerticalScrollIndicator={false}
-          pointerEvents={activeTab === 'Revive' ? 'auto' : 'none'}
+          keyboardVerticalOffset={0}
         >
-          <View style={styles.reviveContent}>
-            {/* Detailed Analysis Section */}
-            {!furnitureAnalysis?.repairNeeded && onRequestDetailedAnalysis && (
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            pointerEvents={activeTab === 'Revive' ? 'auto' : 'none'}
+            contentContainerStyle={{ paddingBottom: 100 }}
+          >
+            <View style={styles.reviveContent}>
+            {/* Show subtle loading state while analyzing (animation is on photo overlay) */}
+            {isAnalyzing && furnitureAnalysis?.repairNeeded === undefined && (
               <View style={styles.revivePromptContainer}>
-                <Text style={styles.reviveTitle}>Get Repair Analysis</Text>
-                <Text style={styles.reviveDescription}>
-                  Get detailed analysis including condition, repair needs, and tutorial search queries for this furniture item.
-                </Text>
-                <TouchableOpacity 
-                  style={styles.detailedAnalysisButton}
-                  onPress={onRequestDetailedAnalysis}
-                  disabled={isAnalyzing}
-                >
-                  <Text style={styles.detailedAnalysisButtonText}>
-                    {isAnalyzing ? 'Analyzing...' : 'Run Detailed Analysis'}
-                  </Text>
-                </TouchableOpacity>
+                <Text style={styles.reviveDescription}>Analyzing furniture for repair issues...</Text>
               </View>
             )}
             
@@ -259,9 +277,6 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                           ]}>
                             {repair}
                           </Text>
-                          {isSelected && (
-                            <Ionicons name="checkmark-circle" size={20} color="#007AFF" />
-                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -274,32 +289,46 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     {customIssues.map((issue: string, index: number) => {
                       const isSelected = selectedRepairs.has(issue);
                       return (
-                        <TouchableOpacity
-                          key={`custom-${index}`}
-                          style={[
-                            styles.repairIssueBox,
-                            isSelected && styles.repairIssueBoxSelected
-                          ]}
-                          onPress={() => {
-                            const newSelected = new Set(selectedRepairs);
-                            if (isSelected) {
+                        <View key={`custom-${index}`} style={styles.customIssueRow}>
+                          <TouchableOpacity
+                            style={[
+                              styles.repairIssueBox,
+                              styles.customIssueBox,
+                              isSelected && styles.repairIssueBoxSelected
+                            ]}
+                            onPress={() => {
+                              const newSelected = new Set(selectedRepairs);
+                              if (isSelected) {
+                                newSelected.delete(issue);
+                              } else {
+                                newSelected.add(issue);
+                              }
+                              setSelectedRepairs(newSelected);
+                            }}
+                          >
+                            <Text style={[
+                              styles.repairIssueText,
+                              isSelected && styles.repairIssueTextSelected
+                            ]}>
+                              {issue}
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.removeIssueButton}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              // Remove from custom issues
+                              const newCustomIssues = customIssues.filter((_, i) => i !== index);
+                              setCustomIssues(newCustomIssues);
+                              // Remove from selected if it was selected
+                              const newSelected = new Set(selectedRepairs);
                               newSelected.delete(issue);
-                            } else {
-                              newSelected.add(issue);
-                            }
-                            setSelectedRepairs(newSelected);
-                          }}
-                        >
-                          <Text style={[
-                            styles.repairIssueText,
-                            isSelected && styles.repairIssueTextSelected
-                          ]}>
-                            {issue}
-                          </Text>
-                          {isSelected && (
-                            <Ionicons name="checkmark-circle" size={20} color="#007AFF" />
-                          )}
-                        </TouchableOpacity>
+                              setSelectedRepairs(newSelected);
+                            }}
+                          >
+                            <Ionicons name="close-circle" size={24} color="#999" />
+                          </TouchableOpacity>
+                        </View>
                       );
                     })}
                   </View>
@@ -309,13 +338,14 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                 <View style={styles.addIssueContainer}>
                   <TextInput
                     style={styles.addIssueInput}
-                    placeholder="Add an issue found"
+                    placeholder="Add an issue"
                     placeholderTextColor="#666"
                     value={customIssue}
                     onChangeText={setCustomIssue}
                     onSubmitEditing={() => {
                       if (customIssue.trim()) {
-                        setCustomIssues([...customIssues, customIssue.trim()]);
+                        const capitalizedIssue = customIssue.trim().charAt(0).toUpperCase() + customIssue.trim().slice(1);
+                        setCustomIssues([...customIssues, capitalizedIssue]);
                         setCustomIssue('');
                       }
                     }}
@@ -324,13 +354,14 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                     style={[styles.addIssueButton, !customIssue.trim() && styles.addIssueButtonDisabled]}
                     onPress={() => {
                       if (customIssue.trim()) {
-                        setCustomIssues([...customIssues, customIssue.trim()]);
+                        const capitalizedIssue = customIssue.trim().charAt(0).toUpperCase() + customIssue.trim().slice(1);
+                        setCustomIssues([...customIssues, capitalizedIssue]);
                         setCustomIssue('');
                       }
                     }}
                     disabled={!customIssue.trim()}
                   >
-                    <Ionicons name="add" size={24} color={customIssue.trim() ? "#007AFF" : "#666"} />
+                    <Ionicons name="add" size={24} color={customIssue.trim() ? "#A8C686" : "#666"} />
                   </TouchableOpacity>
                 </View>
 
@@ -352,7 +383,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                         </>
                       ) : (
                         <>
-                          <Ionicons name="construct-outline" size={20} color="#FFF" />
+                          <NailIcon size={24} color="#FFF" filled={true} />
                           <Text style={styles.generatePlanButtonText}>Generate Repair Plan</Text>
                         </>
                       )}
@@ -361,8 +392,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                 )}
               </View>
             )}
-          </View>
-        </ScrollView>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
         
         {/* Pinterest-style masonry layout for Inspo tab */}
         <ScrollView
@@ -374,34 +406,74 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
             <View style={styles.column}>
               {inspoColumns.left.map(photo => (
                 <View key={photo.id} style={styles.photoCard}>
-                  <Image 
-                    source={{ uri: photo.uri }} 
-                    style={[styles.photo, { height: photo.height }]} 
-                    resizeMode="cover"
-                  />
-                  <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={() => toggleSave(photo.id)}
-                  >
-                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
-                  </TouchableOpacity>
+                  <View style={styles.imageContainer}>
+                    <Image 
+                      source={{ uri: photo.uri }} 
+                      style={[styles.photo, { height: photo.height }]} 
+                      resizeMode="cover"
+                    />
+                    {photo.user_id !== currentUserId && (
+                      <TouchableOpacity 
+                        style={styles.savedButton}
+                        onPress={() => toggleSave(photo.id)}
+                      >
+                        <NailIcon size={24} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {/* User info */}
+                  <View style={styles.userInfo}>
+                    {photo.avatar_url ? (
+                      <Image 
+                        source={{ uri: photo.avatar_url }} 
+                        style={styles.avatar}
+                      />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person" size={16} color="#666" />
+                      </View>
+                    )}
+                    <Text style={styles.username} numberOfLines={1}>
+                      {photo.display_name || photo.username || 'Unknown'}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </View>
             <View style={styles.column}>
               {inspoColumns.right.map(photo => (
                 <View key={photo.id} style={styles.photoCard}>
-                  <Image 
-                    source={{ uri: photo.uri }} 
-                    style={[styles.photo, { height: photo.height }]} 
-                    resizeMode="cover"
-                  />
-                  <TouchableOpacity 
-                    style={styles.savedButton}
-                    onPress={() => toggleSave(photo.id)}
-                  >
-                    <NailIcon size={24} color="white" filled={savedPhotos.has(photo.id)} />
-                  </TouchableOpacity>
+                  <View style={styles.imageContainer}>
+                    <Image 
+                      source={{ uri: photo.uri }} 
+                      style={[styles.photo, { height: photo.height }]} 
+                      resizeMode="cover"
+                    />
+                    {photo.user_id !== currentUserId && (
+                      <TouchableOpacity 
+                        style={styles.savedButton}
+                        onPress={() => toggleSave(photo.id)}
+                      >
+                        <NailIcon size={24} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {/* User info */}
+                  <View style={styles.userInfo}>
+                    {photo.avatar_url ? (
+                      <Image 
+                        source={{ uri: photo.avatar_url }} 
+                        style={styles.avatar}
+                      />
+                    ) : (
+                      <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="person" size={16} color="#666" />
+                      </View>
+                    )}
+                    <Text style={styles.username} numberOfLines={1}>
+                      {photo.display_name || photo.username || 'Unknown'}
+                    </Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -418,7 +490,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#000',
+    backgroundColor: '#0F0A0A',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     shadowColor: '#000',
@@ -437,7 +509,7 @@ const styles = StyleSheet.create({
   dragHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#666',
+    backgroundColor: '#999',
     borderRadius: 2,
   },
   bottomSheetHeader: {
@@ -463,9 +535,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   analysisLabel: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#999',
+    color: '#FFF',
     marginBottom: 6,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -489,51 +561,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   repairIssuesContainer: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
+    marginTop: 0,
+    marginBottom: 20,
+    backgroundColor: '#FFFFFF1A',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#FFF',
   },
   repairIssuesTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
     color: '#FFF',
     marginBottom: 4,
   },
   repairIssuesSubtitle: {
-    fontSize: 13,
+    fontSize: 15,
     color: '#999',
     marginBottom: 16,
   },
   noIssuesText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#999',
     marginBottom: 16,
     fontStyle: 'italic',
   },
   repairIssuesList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'column',
     gap: 8,
     marginBottom: 16,
+  },
+  customIssueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  customIssueBox: {
+    flex: 1,
+  },
+  removeIssueButton: {
+    padding: 4,
   },
   repairIssueBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF1A',
     borderWidth: 1,
-    borderColor: '#333',
+    borderColor: '#FFF',
     gap: 8,
   },
   repairIssueBoxSelected: {
-    backgroundColor: '#001F3F',
-    borderColor: '#007AFF',
+    backgroundColor: 'rgba(168, 198, 134, 0.3)',
+    borderColor: '#A8C686',
   },
   repairIssueText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#CCC',
   },
   repairIssueTextSelected: {
@@ -541,29 +626,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addIssueContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    position: 'relative',
     marginTop: 8,
   },
   addIssueInput: {
-    flex: 1,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#FFFFFF1A',
     borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 14,
+    borderColor: '#FFF',
+    borderRadius: 16,
+    paddingHorizontal: 20,
+    paddingRight: 50,
+    paddingVertical: 16,
+    fontSize: 16,
     color: '#FFF',
   },
   addIssueButton: {
+    position: 'absolute',
+    right: 8,
+    top: '50%',
+    transform: [{ translateY: -22 }],
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: '#333',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -580,7 +665,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#A8C686',
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -684,7 +769,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#FFF',
+    borderBottomColor: '#A8C686',
   },
   tabText: {
     fontSize: 16,
@@ -692,7 +777,7 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   activeTabText: {
-    color: '#FFF',
+    color: '#A8C686',
     fontWeight: '600',
   },
   photoGridContainer: {
@@ -711,12 +796,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#1A1A1A',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  imageContainer: {
+    position: 'relative',
   },
   photo: {
     width: '100%',
@@ -732,6 +819,32 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  avatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  avatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  username: {
+    fontSize: 12,
+    color: '#AAA',
+    fontWeight: '500',
+    flex: 1,
   },
   hidden: {
     opacity: 0,
