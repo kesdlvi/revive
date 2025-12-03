@@ -217,7 +217,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                 styles.analysisContainer,
                 isAnalyzing && !furnitureAnalysis?.item && {
                   borderColor: gradientColor1,
-                  borderWidth: 2,
+                  borderWidth: 3,
                 }
               ]}
             >
@@ -282,6 +282,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   styles.repairIssuesContainer,
                   isAnalyzing && furnitureAnalysis?.repairNeeded === undefined && {
                     borderColor: gradientColor2,
+                    borderWidth: 3,
                   }
                 ]}
               >

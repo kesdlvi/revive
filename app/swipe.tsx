@@ -585,6 +585,11 @@ export default function SwipeScreen() {
             <TutorialsPage
               tutorialPlan={tutorialPlan}
               onClose={() => setTutorialPlan(null)}
+              onGoToFeed={() => {
+                setTutorialPlan(null);
+                clearPreview();
+                goToFeed();
+              }}
             />
           </View>
         )}

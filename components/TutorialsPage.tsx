@@ -1,8 +1,8 @@
 import { TutorialPlan } from '@/services/openai';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState, useMemo, useRef } from 'react';
-import { ActivityIndicator, Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { ActivityIndicator, Alert, Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
 
@@ -11,15 +11,18 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 interface TutorialsPageProps {
   tutorialPlan: TutorialPlan;
   onClose?: () => void;
+  onGoToFeed?: () => void;
 }
 
-export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
+export function TutorialsPage({ tutorialPlan, onClose, onGoToFeed }: TutorialsPageProps) {
   const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
   // Store completion state per issue
   const [completedStepsByIssue, setCompletedStepsByIssue] = useState<Map<string, Set<number>>>(new Map());
   const [materialsExpanded, setMaterialsExpanded] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const tutorialContentRef = useRef<View>(null);
+  const completionAnimation = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Get unique issues from tutorials
   const issues = useMemo(() => {
@@ -48,7 +51,6 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
     }
   }, [issues, selectedIssue]);
 
-
   // Calculate progress
   const progress = useMemo(() => {
     if (!selectedTutorial || !selectedTutorial.steps || selectedTutorial.steps.length === 0) {
@@ -59,6 +61,25 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
 
   // Check if all steps are completed
   const allStepsCompleted = selectedTutorial && selectedTutorial.steps && completedSteps.size === selectedTutorial.steps.length;
+
+  // Animate completion message when all steps are completed
+  useEffect(() => {
+    if (allStepsCompleted) {
+      // Reset and animate in
+      completionAnimation.setValue(0);
+      Animated.sequence([
+        Animated.spring(completionAnimation, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Reset when not completed
+      completionAnimation.setValue(0);
+    }
+  }, [allStepsCompleted, completionAnimation]);
 
   // Toggle step completion
   const toggleStepCompletion = (stepIndex: number) => {
@@ -221,9 +242,27 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
               );
             })}
           </View>
-          <Text style={styles.progressText}>
-            {completedSteps.size} / {selectedTutorial.steps.length} steps completed
-          </Text>
+          {allStepsCompleted ? (
+            <Animated.View 
+              style={{
+                opacity: completionAnimation,
+                transform: [
+                  {
+                    scale: completionAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Text style={styles.progressTextCompleted}>Great work!</Text>
+            </Animated.View>
+          ) : (
+            <Text style={styles.progressText}>
+              {completedSteps.size} / {selectedTutorial.steps.length} steps completed
+            </Text>
+          )}
         </View>
       )}
 
@@ -373,11 +412,22 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
                       })}
                     </View>
 
-                    {/* Completion Message - Show when all steps are completed */}
+                    {/* Go to Feed Button - Show when all steps are completed */}
                     {allStepsCompleted && (
-                      <View style={styles.completionMessage}>
-                        <Ionicons name="checkmark-circle" size={32} color="#A8C686" />
-                        <Text style={styles.completionMessageText}>Great work!</Text>
+                      <View style={styles.goToFeedContainer}>
+                        <TouchableOpacity
+                          style={styles.goToFeedButton}
+                          onPress={() => {
+                            if (onGoToFeed) {
+                              onGoToFeed();
+                            } else if (onClose) {
+                              onClose();
+                            }
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.goToFeedButtonText}>Exit tutorial</Text>
+                        </TouchableOpacity>
                       </View>
                     )}
                   </View>
@@ -533,6 +583,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
     textAlign: 'center',
+  },
+  progressTextCompleted: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#A8C686',
+    textAlign: 'center',
+  },
+  goToFeedContainer: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  goToFeedButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#A8C686',
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    gap: 8,
+  },
+  goToFeedButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   tutorialsContainer: {
     padding: 20,

@@ -392,6 +392,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setIsFurnitureItem(null);
     setIsValidatingFurniture(false);
     setTutorialPlan(null);
+    setCameraMode('scan'); // Reset to scan mode
   };
 
   const handleGeneratePlan = async (selectedIssues: string[]) => {
