@@ -139,7 +139,31 @@ export async function getSavedPosts(userId: string): Promise<FurnitureImage[]> {
       })
       .filter((img: any) => img !== null);
 
-    return savedPosts;
+    // Fetch profile data for all unique user IDs
+    const userIds = [...new Set(savedPosts.map(post => post.user_id).filter(Boolean))];
+    const profilesMap = new Map();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', userIds);
+      if (profiles) {
+        profiles.forEach((profile: any) => {
+          profilesMap.set(profile.id, profile);
+        });
+      }
+    }
+
+    // Map profile data to saved posts
+    return savedPosts.map(post => {
+      const profile = post.user_id ? profilesMap.get(post.user_id) : null;
+      return {
+        ...post,
+        username: profile?.username,
+        display_name: profile?.display_name,
+        avatar_url: profile?.avatar_url,
+      };
+    });
   } catch (error) {
     console.error('Error fetching saved posts:', error);
     return [];

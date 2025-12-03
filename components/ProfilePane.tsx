@@ -5,9 +5,10 @@ import { useImageDimensions } from '@/hooks/useImageDimensions';
 import { supabase } from '@/lib/supabase';
 import { uploadProfilePhoto } from '@/services/profilePhoto';
 import { getSavedPosts } from '@/services/savedPosts';
+import { getSavedTutorials, SavedTutorial } from '@/services/savedTutorials';
 import { FurnitureImage } from '@/types/furniture';
-import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -22,6 +23,7 @@ interface ProfilePaneProps {
   onProfileTabChange: (tab: 'Created' | 'Saved') => void;
   onSignOut: () => void;
   onPhotoPress?: (photo: FurnitureImage) => void;
+  onTutorialPress?: (tutorial: SavedTutorial) => void;
   savedPhotos: Set<string>;
   onSaveToggle: (photoId: string) => Promise<void>;
   onProfileUpdate?: () => void;
@@ -36,6 +38,7 @@ export function ProfilePane({
   onProfileTabChange,
   onSignOut,
   onPhotoPress,
+  onTutorialPress,
   savedPhotos,
   onSaveToggle,
   onProfileUpdate,
@@ -43,19 +46,32 @@ export function ProfilePane({
   const { user } = useAuth();
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [savedPosts, setSavedPosts] = useState<FurnitureImage[]>([]);
+  const [savedTutorials, setSavedTutorials] = useState<SavedTutorial[]>([]);
   const [createdPosts, setCreatedPosts] = useState<FurnitureImage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [savedSubTab, setSavedSubTab] = useState<'Posts' | 'Tutorials'>('Posts');
 
   // Fetch saved posts
   useEffect(() => {
-    if (activeProfileTab === 'Saved' && user?.id) {
+    if (activeProfileTab === 'Saved' && savedSubTab === 'Posts' && user?.id) {
       setLoading(true);
       getSavedPosts(user.id).then(posts => {
         setSavedPosts(posts);
         setLoading(false);
       });
     }
-  }, [activeProfileTab, user?.id]);
+  }, [activeProfileTab, savedSubTab, user?.id]);
+
+  // Fetch saved tutorials
+  useEffect(() => {
+    if (activeProfileTab === 'Saved' && savedSubTab === 'Tutorials' && user?.id) {
+      setLoading(true);
+      getSavedTutorials(user.id).then(tutorials => {
+        setSavedTutorials(tutorials);
+        setLoading(false);
+      });
+    }
+  }, [activeProfileTab, savedSubTab, user?.id]);
 
   // Fetch created posts
   useEffect(() => {
@@ -247,73 +263,199 @@ export function ProfilePane({
         </TouchableOpacity>
       </View>
 
-      {/* Posts Grid */}
+      {/* Sub-tabs for Saved section */}
+      {activeProfileTab === 'Saved' && (
+        <View style={styles.subTabContainer}>
+          <TouchableOpacity 
+            style={styles.subTab}
+            onPress={() => setSavedSubTab('Posts')}
+          >
+            <Text style={[styles.subTabText, savedSubTab === 'Posts' && styles.activeSubTabText]}>
+              Posts
+            </Text>
+            {savedSubTab === 'Posts' && <View style={styles.subTabUnderline} />}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.subTab}
+            onPress={() => setSavedSubTab('Tutorials')}
+          >
+            <Text style={[styles.subTabText, savedSubTab === 'Tutorials' && styles.activeSubTabText]}>
+              Repair Plans
+            </Text>
+            {savedSubTab === 'Tutorials' && <View style={styles.subTabUnderline} />}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Posts Grid or Tutorials Grid */}
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#FFF" />
             <Text style={styles.loadingText}>Loading...</Text>
           </View>
-        ) : currentPosts.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="images-outline" size={64} color="#666" />
-            <Text style={styles.emptyText}>
-              {activeProfileTab === 'Saved' ? 'No saved posts yet' : 'No posts yet'}
-            </Text>
-          </View>
+        ) : activeProfileTab === 'Saved' && savedSubTab === 'Tutorials' ? (
+          // Saved Tutorials
+          savedTutorials.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="hammer-outline" size={64} color="#666" />
+              <Text style={styles.emptyText}>No repair plans yet</Text>
+            </View>
+          ) : (
+            <View style={styles.masonryContainer}>
+              <View style={styles.column}>
+                {savedTutorials.filter((_, i) => i % 2 === 0).map(tutorial => {
+                  const firstIssue = tutorial.tutorial_plan?.tutorials?.[0]?.issue || 'Repair Tutorial';
+                  return (
+                    <View key={tutorial.id} style={styles.photoCard}>
+                      <TouchableOpacity
+                        onPress={() => onTutorialPress?.(tutorial)}
+                        activeOpacity={0.9}
+                      >
+                        <Image
+                          source={{ uri: tutorial.scanned_image_uri }}
+                          style={[styles.photo, { width: columns.columnWidth, height: columns.columnWidth * 1.2 }]}
+                          resizeMode="cover"
+                          fadeDuration={150}
+                        />
+                      </TouchableOpacity>
+                      {/* User info section with issue name */}
+                      <View style={styles.userInfo}>
+                        <Text style={styles.username} numberOfLines={1}>
+                          {firstIssue}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.column}>
+                {savedTutorials.filter((_, i) => i % 2 === 1).map(tutorial => {
+                  const firstIssue = tutorial.tutorial_plan?.tutorials?.[0]?.issue || 'Repair Tutorial';
+                  return (
+                    <View key={tutorial.id} style={styles.photoCard}>
+                      <TouchableOpacity
+                        onPress={() => onTutorialPress?.(tutorial)}
+                        activeOpacity={0.9}
+                      >
+                        <Image
+                          source={{ uri: tutorial.scanned_image_uri }}
+                          style={[styles.photo, { width: columns.columnWidth, height: columns.columnWidth * 1.2 }]}
+                          resizeMode="cover"
+                          fadeDuration={150}
+                        />
+                      </TouchableOpacity>
+                      {/* User info section with issue name */}
+                      <View style={styles.userInfo}>
+                        <Text style={styles.username} numberOfLines={1}>
+                          {firstIssue}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )
         ) : (
-          <View style={styles.masonryContainer}>
-            <View style={styles.column}>
-              {columns.left.map(photo => (
-                <TouchableOpacity
-                  key={photo.id}
-                  style={styles.photoCard}
-                  onPress={() => onPhotoPress?.(photo)}
-                  activeOpacity={0.9}
-                >
-                  <Image
-                    source={{ uri: photo.public_url }}
-                    style={[styles.photo, { width: columns.columnWidth, height: photo.height }]}
-                    resizeMode="contain"
-                    fadeDuration={150}
-                  />
-                  {activeProfileTab === 'Saved' && (
-                    <TouchableOpacity 
-                      style={styles.savedButton}
-                      onPress={(e) => toggleSave(photo.id, e)}
-                    >
-                      <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-              ))}
+          // Saved Posts or Created Posts
+          currentPosts.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="images-outline" size={64} color="#666" />
+              <Text style={styles.emptyText}>
+                No posts yet
+              </Text>
             </View>
-            <View style={styles.column}>
-              {columns.right.map(photo => (
-                <TouchableOpacity
-                  key={photo.id}
-                  style={styles.photoCard}
-                  onPress={() => onPhotoPress?.(photo)}
-                  activeOpacity={0.9}
-                >
-                  <Image
-                    source={{ uri: photo.public_url }}
-                    style={[styles.photo, { width: columns.columnWidth, height: photo.height }]}
-                    resizeMode="contain"
-                    fadeDuration={150}
-                  />
-                  {activeProfileTab === 'Saved' && (
-                    <TouchableOpacity 
-                      style={styles.savedButton}
-                      onPress={(e) => toggleSave(photo.id, e)}
+          ) : (
+            <View style={styles.masonryContainer}>
+              <View style={styles.column}>
+                {columns.left.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <TouchableOpacity
+                      onPress={() => onPhotoPress?.(photo)}
+                      activeOpacity={0.9}
                     >
-                      <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                      <Image
+                        source={{ uri: photo.public_url }}
+                        style={[styles.photo, { width: columns.columnWidth, height: photo.height }]}
+                        resizeMode="contain"
+                        fadeDuration={150}
+                      />
+                      {activeProfileTab === 'Saved' && savedSubTab === 'Posts' && (
+                        <TouchableOpacity 
+                          style={styles.savedButton}
+                          onPress={(e) => toggleSave(photo.id, e)}
+                        >
+                          <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                        </TouchableOpacity>
+                      )}
                     </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-              ))}
+                    {/* User info - only show for saved posts */}
+                    {activeProfileTab === 'Saved' && savedSubTab === 'Posts' && (
+                      <View style={styles.userInfo}>
+                        {photo.avatar_url ? (
+                          <Image 
+                            source={{ uri: photo.avatar_url }} 
+                            style={styles.avatar}
+                          />
+                        ) : (
+                          <View style={styles.avatarPlaceholder}>
+                            <Ionicons name="person" size={16} color="#666" />
+                          </View>
+                        )}
+                        <Text style={styles.username} numberOfLines={1}>
+                          {photo.display_name || photo.username || 'Unknown'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+              <View style={styles.column}>
+                {columns.right.map(photo => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <TouchableOpacity
+                      onPress={() => onPhotoPress?.(photo)}
+                      activeOpacity={0.9}
+                    >
+                      <Image
+                        source={{ uri: photo.public_url }}
+                        style={[styles.photo, { width: columns.columnWidth, height: photo.height }]}
+                        resizeMode="contain"
+                        fadeDuration={150}
+                      />
+                      {activeProfileTab === 'Saved' && savedSubTab === 'Posts' && (
+                        <TouchableOpacity 
+                          style={styles.savedButton}
+                          onPress={(e) => toggleSave(photo.id, e)}
+                        >
+                          <NailIcon size={20} color={savedPhotos.has(photo.id) ? "#8AA64E" : "white"} filled={savedPhotos.has(photo.id)} />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                    {/* User info - only show for saved posts */}
+                    {activeProfileTab === 'Saved' && savedSubTab === 'Posts' && (
+                      <View style={styles.userInfo}>
+                        {photo.avatar_url ? (
+                          <Image 
+                            source={{ uri: photo.avatar_url }} 
+                            style={styles.avatar}
+                          />
+                        ) : (
+                          <View style={styles.avatarPlaceholder}>
+                            <Ionicons name="person" size={16} color="#666" />
+                          </View>
+                        )}
+                        <Text style={styles.username} numberOfLines={1}>
+                          {photo.display_name || photo.username || 'Unknown'}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          )
         )}
       </ScrollView>
 
@@ -449,6 +591,35 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: '#FFF',
   },
+  subTabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    gap: 24,
+    backgroundColor: '#000',
+  },
+  subTab: {
+    position: 'relative',
+    paddingBottom: 8,
+  },
+  subTabText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+  },
+  activeSubTabText: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  subTabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#FFF',
+  },
   loadingContainer: {
     paddingTop: 100,
     alignItems: 'center',
@@ -482,12 +653,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#0F0F0F',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
   },
   photo: { 
     borderRadius: 12,
@@ -526,6 +691,52 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF3B30',
     fontWeight: '600',
+  },
+  tutorialImageContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  tutorialOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#0F0A0A',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  tutorialIssueText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFF',
+    textAlign: 'center',
+  },
+  userInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  avatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  avatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  username: {
+    fontSize: 12,
+    color: '#AAA',
+    fontWeight: '500',
+    flex: 1,
   },
 });
 

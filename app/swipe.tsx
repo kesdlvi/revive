@@ -584,6 +584,7 @@ export default function SwipeScreen() {
           <View style={styles.tutorialsOverlay}>
             <TutorialsPage
               tutorialPlan={tutorialPlan}
+              scannedImageUri={previewUri || undefined}
               onClose={() => setTutorialPlan(null)}
               onGoToFeed={() => {
                 setTutorialPlan(null);
@@ -605,6 +606,9 @@ export default function SwipeScreen() {
             onProfileTabChange={setActiveProfileTab}
             onSignOut={handleSignOut}
             onPhotoPress={handlePhotoPress}
+            onTutorialPress={(tutorial) => {
+              setTutorialPlan(tutorial.tutorial_plan);
+            }}
             savedPhotos={savedPhotos}
             onSaveToggle={handleSaveToggle}
             onProfileUpdate={refetchProfile}

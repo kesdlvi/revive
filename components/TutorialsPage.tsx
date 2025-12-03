@@ -1,20 +1,24 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { TutorialPlan } from '@/services/openai';
+import { saveTutorial } from '@/services/savedTutorials';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ActivityIndicator, Alert, Animated, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { captureRef } from 'react-native-view-shot';
 import * as MediaLibrary from 'expo-media-library';
+import { router } from 'expo-router';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActionSheetIOS, ActivityIndicator, Alert, Animated, Dimensions, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface TutorialsPageProps {
   tutorialPlan: TutorialPlan;
+  scannedImageUri?: string;
   onClose?: () => void;
   onGoToFeed?: () => void;
 }
 
-export function TutorialsPage({ tutorialPlan, onClose, onGoToFeed }: TutorialsPageProps) {
+export function TutorialsPage({ tutorialPlan, scannedImageUri, onClose, onGoToFeed }: TutorialsPageProps) {
+  const { user } = useAuth();
   const [selectedIssue, setSelectedIssue] = useState<string | null>(null);
   // Store completion state per issue
   const [completedStepsByIssue, setCompletedStepsByIssue] = useState<Map<string, Set<number>>>(new Map());
@@ -128,12 +132,40 @@ export function TutorialsPage({ tutorialPlan, onClose, onGoToFeed }: TutorialsPa
     }
   };
 
-  const handleSaveTutorial = async () => {
+  const handleSaveTutorial = () => {
     if (!selectedTutorial) {
       Alert.alert('Error', 'No tutorial selected.');
       return;
     }
 
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Save as Image', 'Save for Later'],
+          cancelButtonIndex: 0,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 1) {
+            await handleSaveAsImage();
+          } else if (buttonIndex === 2) {
+            await handleSaveForLater();
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        'Save Tutorial',
+        'Choose an option',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save as Image', onPress: handleSaveAsImage },
+          { text: 'Save for Later', onPress: handleSaveForLater },
+        ]
+      );
+    }
+  };
+
+  const handleSaveAsImage = async () => {
     if (!tutorialContentRef.current) {
       Alert.alert('Error', 'Unable to capture tutorial. Please try again.');
       return;
@@ -173,6 +205,34 @@ export function TutorialsPage({ tutorialPlan, onClose, onGoToFeed }: TutorialsPa
       }
 
       Alert.alert('Success', 'Tutorial saved to your photo library!');
+    } catch (error: any) {
+      console.error('Error saving tutorial:', error);
+      Alert.alert('Error', `Failed to save tutorial: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveForLater = async () => {
+    if (!user?.id) {
+      Alert.alert('Error', 'You must be logged in to save tutorials.');
+      return;
+    }
+
+    if (!scannedImageUri) {
+      Alert.alert('Error', 'No scanned image available.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const result = await saveTutorial(user.id, tutorialPlan, scannedImageUri);
+      
+      if (result.success) {
+        Alert.alert('Success', 'Tutorial saved for later!');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to save tutorial.');
+      }
     } catch (error: any) {
       console.error('Error saving tutorial:', error);
       Alert.alert('Error', `Failed to save tutorial: ${error.message || 'Unknown error'}`);

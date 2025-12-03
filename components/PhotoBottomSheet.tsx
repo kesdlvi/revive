@@ -76,7 +76,6 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
   const [customIssue, setCustomIssue] = useState('');
   const [customIssues, setCustomIssues] = useState<string[]>([]);
   const [savedPhotos, setSavedPhotos] = useState<Set<number>>(new Set());
-  const lastAnalysisId = useRef<string | undefined>(undefined);
   const colorProgress = useRef(new Animated.Value(0)).current;
 
   // Animated gradient border with cycling colors
@@ -112,24 +111,7 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
     outputRange: ['#A8C686', '#583C21', '#A8C686'],
   });
 
-  // Automatically run detailed analysis when Revive tab is active and analysis hasn't been requested yet
-  useEffect(() => {
-    // Reset flag if this is a new furniture analysis (different item)
-    const currentAnalysisId = furnitureAnalysis?.item;
-    if (currentAnalysisId !== lastAnalysisId.current) {
-      lastAnalysisId.current = currentAnalysisId;
-    }
-
-    if (
-      activeTab === 'Revive' &&
-      onRequestDetailedAnalysis &&
-      furnitureAnalysis?.repairNeeded === undefined &&
-      !isAnalyzing &&
-      furnitureAnalysis?.item // Only run if we have basic analysis
-    ) {
-      onRequestDetailedAnalysis();
-    }
-  }, [activeTab, onRequestDetailedAnalysis, furnitureAnalysis?.repairNeeded, furnitureAnalysis?.item, isAnalyzing]);
+  // Note: Detailed analysis is now done by default, so no need to auto-trigger it
 
   const toggleSave = (photoId: number) => {
     setSavedPhotos(prev => {
