@@ -230,7 +230,7 @@ export async function generateTutorials(
       messages: [
         {
           role: 'user',
-          content: `Generate detailed repair tutorials for a ${furnitureItem} with the following issues: ${selectedIssues.join(', ')}.${contextInfo}
+          content: `Generate quick repair tutorials for a ${furnitureItem} with the following issues: ${selectedIssues.join(', ')}.${contextInfo}. 
 
 Return a JSON object with this structure:
 {
@@ -240,12 +240,12 @@ Return a JSON object with this structure:
       "issue": "exact issue name from the list",
       "title": "Descriptive tutorial title",
       "steps": ["step 1", "step 2", "step 3", ...],
-      "materials": ["specific material 1 with brand/type if relevant", "specific material 2 with brand/type if relevant", ...]
+      "materials": ["specific material 1 with brand/type", "specific material 2 with brand/type", ...]
     }
   ]
 }
 
-Generate one tutorial for each issue. Make the steps clear, actionable, and beginner-friendly. For materials, be very specific - include exact product names, brands, types, sizes, and quantities when relevant (e.g., "Gorilla Wood Glue, 4 oz", "220-grit sandpaper", "Minwax Polyurethane, satin finish, 1 quart"). Include all necessary materials.`,
+Generate one tutorial for each issue. Keep the steps quick to follow with minimal household materials such as screwdrivers(flathead, Phillips, etc.), wrenches(open ended, adjustable, etc.), and Allen keys(hex, square, etc.), measuring tape, hammer.`,
         },
       ],
       response_format: { type: 'json_object' },

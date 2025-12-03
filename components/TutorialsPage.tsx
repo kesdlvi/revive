@@ -1,8 +1,10 @@
 import { TutorialPlan } from '@/services/openai';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React, { useState, useMemo } from 'react';
-import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import { ActivityIndicator, Alert, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as MediaLibrary from 'expo-media-library';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -16,6 +18,8 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
   // Store completion state per issue
   const [completedStepsByIssue, setCompletedStepsByIssue] = useState<Map<string, Set<number>>>(new Map());
   const [materialsExpanded, setMaterialsExpanded] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const tutorialContentRef = useRef<View>(null);
 
   // Get unique issues from tutorials
   const issues = useMemo(() => {
@@ -111,7 +115,19 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Your Repair Plan</Text>
         </View>
-        <View style={styles.headerSpacer} />
+        {selectedTutorial && (
+          <TouchableOpacity 
+            style={styles.saveButton} 
+            onPress={handleSaveTutorial}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#A8C686" />
+            ) : (
+              <Ionicons name="download-outline" size={24} color="#A8C686" />
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Fixed Progress Bar */}
@@ -201,35 +217,24 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
             </View>
 
             <View style={styles.tutorialContent}>
-                {/* Materials */}
+                {/* Materials - Always expanded when saving */}
                 {selectedTutorial.materials && selectedTutorial.materials.length > 0 && (
                   <View style={styles.section}>
                     <View style={styles.materialsBox}>
-                      <TouchableOpacity
-                        style={styles.materialsHeader}
-                        onPress={() => setMaterialsExpanded(!materialsExpanded)}
-                        activeOpacity={0.7}
-                      >
+                      <View style={styles.materialsHeader}>
                         <View style={styles.sectionTitle}>
                           <Ionicons name="construct-outline" size={18} color="#A8C686" />
                           <Text style={styles.sectionTitleText}>Materials Needed</Text>
                         </View>
-                        <Ionicons
-                          name={materialsExpanded ? "chevron-up" : "chevron-down"}
-                          size={20}
-                          color="#A8C686"
-                        />
-                      </TouchableOpacity>
-                      {materialsExpanded && (
-                        <View style={styles.materialsList}>
-                          {selectedTutorial.materials.map((material, matIndex) => (
-                            <View key={matIndex} style={styles.materialItem}>
-                              <Ionicons name="checkmark-circle-outline" size={16} color="#A8C686" />
-                              <Text style={styles.materialText}>{material}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
+                      </View>
+                      <View style={styles.materialsList}>
+                        {selectedTutorial.materials.map((material, matIndex) => (
+                          <View key={matIndex} style={styles.materialItem}>
+                            <Ionicons name="checkmark-circle-outline" size={16} color="#A8C686" />
+                            <Text style={styles.materialText}>{material}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
                   </View>
                 )}
@@ -352,6 +357,12 @@ const styles = StyleSheet.create({
   },
   headerSpacer: {
     width: 44,
+  },
+  saveButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 24,
