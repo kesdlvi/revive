@@ -1,4 +1,3 @@
-import { EditIcon } from '@/components/EditIcon';
 import { NailIcon } from '@/components/NailIcon';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +35,42 @@ type TabType = 'Inspo' | 'Revive';
  * Can be dragged up to expand, but cannot be dismissed by dragging down.
  */
 export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isAnalyzing, onRequestDetailedAnalysis, onGeneratePlan, isGeneratingPlan, currentUserId }: PhotoBottomSheetProps) {
+  // Helper function to get emoji for furniture item
+  const getItemEmoji = (item: string): string => {
+    if (!item) return '';
+    const lowerItem = item.toLowerCase();
+    
+    // Chair-related
+    if (lowerItem.includes('chair') || lowerItem.includes('seat')) return '🪑';
+    // Table-related
+    if (lowerItem.includes('table') || lowerItem.includes('desk')) return '🪑';
+    // Sofa/Couch
+    if (lowerItem.includes('sofa') || lowerItem.includes('couch') || lowerItem.includes('settee')) return '🛋️';
+    // Bed
+    if (lowerItem.includes('bed')) return '🛏️';
+    // Cabinet/Dresser
+    if (lowerItem.includes('cabinet') || lowerItem.includes('dresser') || lowerItem.includes('wardrobe') || lowerItem.includes('chest')) return '🗄️';
+    // Lamp
+    if (lowerItem.includes('lamp') || lowerItem.includes('light')) return '💡';
+    // Mirror
+    if (lowerItem.includes('mirror')) return '🪞';
+    // Bookshelf
+    if (lowerItem.includes('bookshelf') || lowerItem.includes('shelf') || lowerItem.includes('bookcase')) return '📚';
+    // Drawer
+    if (lowerItem.includes('drawer')) return '🗃️';
+    // Stool
+    if (lowerItem.includes('stool')) return '🪑';
+    // Bench
+    if (lowerItem.includes('bench')) return '🪑';
+    // Default furniture emoji
+    return '🪑';
+  };
+
+  // Helper function to capitalize first letter
+  const capitalizeFirst = (str: string): string => {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  };
   const [activeTab, setActiveTab] = useState<TabType>('Revive');
   const [selectedRepairs, setSelectedRepairs] = useState<Set<string>>(new Set());
   const [customIssue, setCustomIssue] = useState('');
@@ -134,8 +169,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
     Animated.spring(translateY, {
       toValue: targetY,
       useNativeDriver: true,
-      tension: 50,
-      friction: 8,
+      tension: 30, // Lower tension = more elastic/bouncy
+      friction: 12, // Higher friction = slower
+      overshootClamping: false, // Allow overshoot for more elastic effect
     }).start(() => {
       lastY.current = targetY;
     });
@@ -166,8 +202,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
         Animated.spring(translateY, {
           toValue: height - MAX_HEIGHT,
           useNativeDriver: true,
-          tension: 50,
-          friction: 8,
+          tension: 30, // Lower tension = more elastic/bouncy
+          friction: 12, // Higher friction = slower
+          overshootClamping: false, // Allow overshoot for more elastic effect
         }).start(() => {
           lastY.current = height - MAX_HEIGHT;
         });
@@ -176,8 +213,9 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
         Animated.spring(translateY, {
           toValue: height - INITIAL_HEIGHT,
           useNativeDriver: true,
-          tension: 50,
-          friction: 8,
+          tension: 30, // Lower tension = more elastic/bouncy
+          friction: 12, // Higher friction = slower
+          overshootClamping: false, // Allow overshoot for more elastic effect
         }).start(() => {
           lastY.current = height - INITIAL_HEIGHT;
         });
@@ -228,17 +266,14 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
                   <View style={styles.analysisTextContainer}>
                     <Text style={styles.analysisLabel}>Here&apos;s what we identified:</Text>
                     <Text style={styles.analysisText}>
-                      {furnitureAnalysis.item || 'Unknown furniture'}
+                      {furnitureAnalysis.item ? capitalizeFirst(furnitureAnalysis.item) : 'Unknown furniture'}
                     </Text>
-                    {furnitureAnalysis.material && (
-                      <Text style={styles.analysisSubtext}>
-                        {furnitureAnalysis.material}
-                      </Text>
-                    )}
                   </View>
-                  <TouchableOpacity style={styles.editButton}>
-                    <EditIcon size={26} color="#FFF" />
-                  </TouchableOpacity>
+                  {furnitureAnalysis.item && (
+                    <Text style={styles.analysisEmoji}>
+                      {getItemEmoji(furnitureAnalysis.item)}
+                    </Text>
+                  )}
                 </View>
               ) : null}
             </Animated.View>
@@ -568,6 +603,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#999',
     borderRadius: 2,
   },
+  dragHandleGlow: {
+    shadowColor: '#A8C686',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   bottomSheetHeader: {
     paddingHorizontal: 20,
     paddingVertical: 12,
@@ -599,11 +641,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   analysisText: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '600',
     color: '#FFF',
     marginBottom: 4,
     flexWrap: 'wrap',
+  },
+  analysisEmoji: {
+    fontSize: 32,
+    marginLeft: 12,
   },
   analysisSubtext: {
     fontSize: 13,
@@ -611,10 +657,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     flexWrap: 'wrap',
     lineHeight: 18,
-  },
-  editButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   repairIssuesContainer: {
     marginTop: 0,

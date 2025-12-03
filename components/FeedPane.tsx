@@ -49,21 +49,21 @@ export function FeedPane({
       {/* Search Bar */}
       <View style={styles.searchBarContainer}>
         <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color="#CCC" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search Revive"
-            placeholderTextColor="#666"
+            placeholderTextColor="#AAA"
             value={searchQuery}
             onChangeText={onSearchChange}
           />
           {searchQuery.length > 0 ? (
             <TouchableOpacity onPress={() => onSearchChange('')} style={styles.clearButton}>
-              <Ionicons name="close-circle" size={20} color="#666" />
+              <Ionicons name="close-circle" size={20} color="#AAA" />
             </TouchableOpacity>
           ) : (
             <TouchableOpacity onPress={onCameraPress} style={styles.cameraButton}>
-              <Ionicons name="camera" size={20} color="#999" />
+              <Ionicons name="camera" size={20} color="#CCC" />
             </TouchableOpacity>
           )}
         </View>
