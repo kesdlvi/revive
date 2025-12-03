@@ -903,9 +903,10 @@ const styles = StyleSheet.create({
   },
   hidden: {
     opacity: 0,
+    pointerEvents: 'none',
     position: 'absolute',
-    top: -9999,
-    left: -9999,
+    width: 0,
+    height: 0,
   },
 });
 

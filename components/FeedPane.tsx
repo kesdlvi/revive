@@ -52,7 +52,7 @@ export function FeedPane({
           <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search reVive"
+            placeholder="Search Revive"
             placeholderTextColor="#666"
             value={searchQuery}
             onChangeText={onSearchChange}
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
   },
   searchBarContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingTop: 80,
     paddingBottom: 12,
     backgroundColor: '#000',
