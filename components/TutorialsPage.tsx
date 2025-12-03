@@ -57,6 +57,9 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
     return completedSteps.size / selectedTutorial.steps.length;
   }, [selectedTutorial, completedSteps]);
 
+  // Check if all steps are completed
+  const allStepsCompleted = selectedTutorial && selectedTutorial.steps && completedSteps.size === selectedTutorial.steps.length;
+
   // Toggle step completion
   const toggleStepCompletion = (stepIndex: number) => {
     if (!selectedIssue) return;
@@ -101,6 +104,59 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
       onClose();
     } else {
       router.back();
+    }
+  };
+
+  const handleSaveTutorial = async () => {
+    if (!selectedTutorial) {
+      Alert.alert('Error', 'No tutorial selected.');
+      return;
+    }
+
+    if (!tutorialContentRef.current) {
+      Alert.alert('Error', 'Unable to capture tutorial. Please try again.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      console.log('Starting save process...');
+
+      // Request media library permissions
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant permission to save images to your photo library.');
+        setIsSaving(false);
+        return;
+      }
+
+      console.log('Capturing tutorial view...');
+      // Capture the tutorial content as an image
+      const uri = await captureRef(tutorialContentRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+
+      console.log('Image captured, saving to library...', uri);
+      // Save to media library
+      const asset = await MediaLibrary.createAssetAsync(uri);
+      console.log('Asset created, creating album...');
+      
+      // Try to create album, but don't fail if it already exists
+      try {
+        await MediaLibrary.createAlbumAsync('reVive', asset, false);
+      } catch (albumError: any) {
+        // Album might already exist, that's okay
+        console.log('Album creation note:', albumError);
+      }
+
+      Alert.alert('Success', 'Tutorial saved to your photo library!');
+    } catch (error: any) {
+      console.error('Error saving tutorial:', error);
+      Alert.alert('Error', `Failed to save tutorial: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -209,7 +265,7 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
 
         {/* Selected Tutorial Content */}
         {selectedTutorial && (
-          <View style={styles.tutorialsContainer}>
+          <View ref={tutorialContentRef} collapsable={false} style={styles.tutorialsContainer}>
             <View style={styles.tutorialHeader}>
               <View style={styles.tutorialHeaderContent}>
                 <Text style={styles.tutorialTitle}>{selectedTutorial.title}</Text>
@@ -316,6 +372,14 @@ export function TutorialsPage({ tutorialPlan, onClose }: TutorialsPageProps) {
                         );
                       })}
                     </View>
+
+                    {/* Completion Message - Show when all steps are completed */}
+                    {allStepsCompleted && (
+                      <View style={styles.completionMessage}>
+                        <Ionicons name="checkmark-circle" size={32} color="#A8C686" />
+                        <Text style={styles.completionMessageText}>Great work!</Text>
+                      </View>
+                    )}
                   </View>
                 )}
             </View>
@@ -643,6 +707,18 @@ const styles = StyleSheet.create({
   },
   stepTextLocked: {
     color: '#666',
+  },
+  completionMessage: {
+    marginTop: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  completionMessageText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#A8C686',
+    marginTop: 12,
   },
 });
 
