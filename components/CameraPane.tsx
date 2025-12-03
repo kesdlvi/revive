@@ -181,19 +181,22 @@ export function CameraPane({
 
           {/* Aspect ratio cycle button - only show in post mode */}
           {cameraMode === 'post' && (
-            <TouchableOpacity
-              style={styles.aspectRatioCycleButton}
-              onPress={() => {
-                const ratios: ('1:1' | '4:3' | 'original')[] = ['1:1', '4:3', 'original'];
-                const currentIndex = ratios.indexOf(aspectRatio);
-                const nextIndex = (currentIndex + 1) % ratios.length;
-                onAspectRatioChange(ratios[nextIndex]);
-              }}
-            >
-              <Text style={styles.aspectRatioCycleText}>
-                {aspectRatio === 'original' ? 'Default' : aspectRatio}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.aspectRatioCycleButtonContainer}>
+              <TouchableOpacity
+                style={styles.aspectRatioCycleButton}
+                onPress={() => {
+                  const ratios: ('1:1' | '4:3' | 'original')[] = ['1:1', '4:3', 'original'];
+                  const currentIndex = ratios.indexOf(aspectRatio);
+                  const nextIndex = (currentIndex + 1) % ratios.length;
+                  onAspectRatioChange(ratios[nextIndex]);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.aspectRatioCycleText}>
+                  {aspectRatio === 'original' ? 'Default' : aspectRatio}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
 
 
@@ -511,17 +514,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 8,
   },
-  aspectRatioCycleButton: {
+  aspectRatioCycleButtonContainer: {
     position: 'absolute',
     bottom: 120, // Above the bottom nav tab
     right: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    zIndex: 10,
+  },
+  aspectRatioCycleButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    minWidth: 80,
+    minHeight: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.4)',
-    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   aspectRatioCycleText: {
     color: '#FFF',
