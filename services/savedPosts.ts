@@ -99,6 +99,7 @@ export async function getSavedPostIds(userId: string): Promise<Set<string>> {
  */
 export async function getSavedPosts(userId: string): Promise<FurnitureImage[]> {
   try {
+    // Limit to 50 most recent saved posts to reduce egress
     const { data, error } = await supabase
       .from('saved_posts')
       .select(`
@@ -116,16 +117,26 @@ export async function getSavedPosts(userId: string): Promise<FurnitureImage[]> {
         )
       `)
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error('Error fetching saved posts:', error);
       return [];
     }
 
-    // Extract furniture_images from the nested structure
+    // Extract furniture_images from the nested structure and parse issues if they exist
     const savedPosts: FurnitureImage[] = (data || [])
-      .map((item: any) => item.furniture_images)
+      .map((item: any) => {
+        const img = item.furniture_images;
+        if (!img) return null;
+        const parsed = { ...img };
+        // Only parse issues if the column exists and has data
+        if (img.issues !== undefined && img.issues !== null) {
+          parsed.issues = typeof img.issues === 'string' ? JSON.parse(img.issues) : img.issues;
+        }
+        return parsed;
+      })
       .filter((img: any) => img !== null);
 
     return savedPosts;

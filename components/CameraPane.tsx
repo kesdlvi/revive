@@ -1,4 +1,5 @@
 import { PhotoBottomSheet } from '@/components/PhotoBottomSheet';
+import { PostUploadScreen } from '@/components/PostUploadScreen';
 import { PreviewOverlay } from '@/components/PreviewOverlay';
 import { ScanFrame } from '@/components/ScanFrame';
 import { FurnitureImage } from '@/types/furniture';
@@ -38,6 +39,8 @@ interface CameraPaneProps {
   onBackFromCamera: () => void;
   onGeneratePlan?: (selectedIssues: string[]) => void;
   isGeneratingPlan?: boolean;
+  postDescription?: string;
+  onPostDescriptionChange?: (description: string) => void;
 }
 
 export function CameraPane({
@@ -68,6 +71,8 @@ export function CameraPane({
   onBackFromCamera,
   onGeneratePlan,
   isGeneratingPlan,
+  postDescription = '',
+  onPostDescriptionChange,
 }: CameraPaneProps) {
   return (
     <Animated.View style={[styles.pane, { transform: [{ scale }] }]}>
@@ -78,6 +83,22 @@ export function CameraPane({
         flash={flashEnabled ? 'on' : 'off'}
         enableTorch={flashEnabled}
       />
+      
+      {/* Post Upload Screen - Full overlay */}
+      {postPreviewUri && cameraMode === 'post' && (
+        <View style={styles.postUploadOverlay}>
+          <PostUploadScreen
+            imageUri={postPreviewUri}
+            description={postDescription || ''}
+            onDescriptionChange={onPostDescriptionChange || (() => {})}
+            onCancel={onPostCancel}
+            onUpload={onPostUpload}
+            isUploading={isUploading}
+            isValidatingFurniture={isValidatingFurniture}
+            isFurnitureItem={isFurnitureItem}
+          />
+        </View>
+      )}
       
       {/* Camera UI hidden while preview is visible */}
       {!previewUri && !postPreviewUri ? (
@@ -211,58 +232,6 @@ export function CameraPane({
           </View>
         </>
       ) : null}
-
-      {/* Post Preview Screen */}
-      {postPreviewUri && cameraMode === 'post' && (
-        <View style={styles.postPreviewContainer}>
-          <Image source={{ uri: postPreviewUri }} style={styles.postPreviewImage} resizeMode="contain" />
-          
-          {/* Analyzing Animation Overlay */}
-          {isValidatingFurniture && (
-            <View style={styles.validationOverlay}>
-              <ActivityIndicator size="large" color="#FFF" />
-              <Text style={styles.validationText}>Analyzing image...</Text>
-            </View>
-          )}
-          
-          <View style={styles.postPreviewControls}>
-            <TouchableOpacity
-              style={styles.postCancelButton}
-              onPress={onPostCancel}
-              disabled={isUploading}
-            >
-              <Ionicons name="close" size={24} color="#FFF" />
-              <Text style={styles.postCancelText}>Cancel</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.postUploadButton, 
-                (isUploading || isValidatingFurniture || isFurnitureItem === false) && styles.postUploadButtonDisabled
-              ]}
-              onPress={onPostUpload}
-              disabled={isUploading || isValidatingFurniture || isFurnitureItem === false}
-            >
-              {isUploading ? (
-                <>
-                  <ActivityIndicator size="small" color="#000" />
-                  <Text style={styles.postUploadText}>Uploading...</Text>
-                </>
-              ) : isValidatingFurniture ? (
-                <>
-                  <ActivityIndicator size="small" color="#666" />
-                  <Text style={[styles.postUploadText, { color: '#666' }]}>Analyzing...</Text>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="cloud-upload-outline" size={24} color={isFurnitureItem === false ? "#666" : "#000"} />
-                  <Text style={[styles.postUploadText, isFurnitureItem === false && { color: '#666' }]}>Upload</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
 
       {/* Photo Preview Overlay - only for scan mode */}
       {previewUri && cameraMode === 'scan' && (
@@ -398,6 +367,15 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '700',
   },
+  postUploadOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 200,
+    backgroundColor: '#000',
+  },
   postPreviewContainer: {
     position: 'absolute',
     top: 0,
@@ -410,6 +388,37 @@ const styles = StyleSheet.create({
   postPreviewImage: {
     flex: 1,
     width: '100%',
+  },
+  postPreviewBottomSection: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    zIndex: 10,
+  },
+  postDescriptionContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  postDescriptionInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#FFF',
+    fontSize: 16,
+    minHeight: 80,
+    maxHeight: 150,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  postDescriptionCharCount: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'right',
+    marginTop: 4,
   },
   postPreviewControls: {
     position: 'absolute',

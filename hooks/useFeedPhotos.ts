@@ -27,14 +27,15 @@ export function useFeedPhotos(searchQuery: string, activeView: 'feed' | 'camera'
 
       const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(30); // Limit to 30 most recent images to reduce egress
+        .limit(20); // Reduced from 30 to 20 to reduce egress
 
       if (error) {
         console.error('❌ Error fetching feed photos:', error);
         Alert.alert('Error', `Failed to load feed: ${error.message}`);
       } else {
         // Filter out any images without valid public_url
-        const validPhotos = (data || []).filter(photo => photo.public_url && photo.public_url.trim() !== '');
+        const validPhotos = (data || [])
+          .filter(photo => photo.public_url && photo.public_url.trim() !== '');
         if (validPhotos.length > 0) {
           console.log('Sample photo:', validPhotos[0]);
         } else if (data && data.length > 0) {

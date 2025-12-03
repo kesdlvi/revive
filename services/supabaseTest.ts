@@ -166,13 +166,42 @@ export async function testSaveMetadata(
       metadata.embedding = embedding;
     }
 
+    // Try to insert, but handle missing issues column gracefully
+    let insertMetadata = { ...metadata };
+    
+    // If issues column doesn't exist, remove it from the insert
+    // (We'll catch the error and retry without issues if needed)
     const { data, error } = await supabase
       .from('furniture_images')
-      .insert(metadata)
+      .insert(insertMetadata)
       .select()
       .single();
 
     if (error) {
+      // If the error is about missing issues column, retry without it
+      if (error.code === '42703' && insertMetadata.issues !== undefined) {
+        console.warn('⚠️ Issues column not found, uploading without issues');
+        delete insertMetadata.issues;
+        const { data: retryData, error: retryError } = await supabase
+          .from('furniture_images')
+          .insert(insertMetadata)
+          .select()
+          .single();
+        
+        if (retryError) {
+          console.error('❌ Database error:', retryError);
+          return {
+            success: false,
+            error: retryError.message || 'Database insert failed',
+          };
+        }
+        
+        return {
+          success: true,
+          data: retryData,
+        };
+      }
+      
       console.error('❌ Database error:', error);
       return {
         success: false,
@@ -204,9 +233,10 @@ export async function testFetchImages(): Promise<{ success: boolean; images?: an
   try {
     console.log('📥 Fetching images from database...');
 
+    // Select only essential columns for testing to reduce egress
     const { data, error } = await supabase
       .from('furniture_images')
-      .select('*')
+      .select('id, public_url, user_id, item, style, created_at')
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -237,7 +267,8 @@ export async function testFetchImages(): Promise<{ success: boolean; images?: an
  */
 export async function testCompleteUpload(
   imageUri: string,
-  userId?: string
+  userId?: string,
+  customDescription?: string
 ): Promise<{ success: boolean; imageData?: any; error?: string }> {
   try {
     // Get current user ID if not provided
@@ -273,7 +304,7 @@ export async function testCompleteUpload(
         material: undefined,
         color: undefined,
         condition: undefined,
-        description: `Furniture item: ${analysisResult.item}`,
+        description: customDescription || `Furniture item: ${analysisResult.item}`,
       };
       console.log('✅ Analysis complete:', analysis.item);
     } catch (error: any) {
@@ -285,7 +316,7 @@ export async function testCompleteUpload(
         material: 'Wood',
         color: 'Brown',
         condition: 'Good',
-        description: 'Test upload from app',
+        description: customDescription || 'Test upload from app',
       };
     }
 

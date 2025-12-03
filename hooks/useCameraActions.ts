@@ -36,6 +36,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '4:3' | 'original'>('1:1');
   const [tutorialPlan, setTutorialPlan] = useState<TutorialPlan | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [postDescription, setPostDescription] = useState<string>('');
 
   const handleImageSelected = async (uri: string) => {
     if (cameraMode === 'post') {
@@ -311,7 +312,11 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
 
     setIsUploading(true);
     try {
-      const result = await testCompleteUpload(postPreviewUri, user.id);
+      const result = await testCompleteUpload(
+        postPreviewUri, 
+        user.id, 
+        postDescription.trim() || undefined
+      );
       
       if (result.success) {
         Alert.alert(
@@ -321,8 +326,9 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
             {
               text: 'OK',
               onPress: () => {
-                // Reset post preview
+                // Reset post preview and description
                 setPostPreviewUri(null);
+                setPostDescription('');
                 // Refresh feed to show new photo
                 if (onFeedRefresh) {
                   onFeedRefresh();
@@ -377,6 +383,7 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
   const clearPreview = () => {
     setPreviewUri(null);
     setPostPreviewUri(null);
+    setPostDescription('');
     setShowPhotoSheet(false);
     setFurnitureAnalysis(null);
     setCurrentPhotoUri(null);
@@ -446,6 +453,8 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
     setTutorialPlan,
     isGeneratingPlan,
     handleGeneratePlan,
+    postDescription,
+    setPostDescription,
   };
 }
 

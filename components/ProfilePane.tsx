@@ -56,11 +56,13 @@ export function ProfilePane({
   useEffect(() => {
     if (activeProfileTab === 'Created' && user?.id) {
       setLoading(true);
+      // Limit to 50 most recent posts to reduce egress
       supabase
         .from('furniture_images')
         .select('id, public_url, user_id, item, style, description, material, color, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
+        .limit(50)
         .then(({ data, error }) => {
           if (!error && data) {
             setCreatedPosts(data);

@@ -42,9 +42,10 @@ export async function searchSimilarImages(
       throw embeddingError; // Re-throw to see the actual error
     }
 
+    // Only select columns needed for display to reduce egress
     let query = supabase
       .from('furniture_images')
-      .select('id, user_id, public_url, item, style, description, material, color, created_at')
+      .select('id, user_id, public_url, item, style, created_at')
       .limit(limit);
 
     // Build query based on available analysis fields

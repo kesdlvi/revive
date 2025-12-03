@@ -1,6 +1,7 @@
 import { CameraPane } from '@/components/CameraPane';
 import { FeedPane } from '@/components/FeedPane';
 import { NailIcon } from '@/components/NailIcon';
+import { PostThread } from '@/components/PostThread';
 import { ProfilePane } from '@/components/ProfilePane';
 import { TutorialsPage } from '@/components/TutorialsPage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,13 +11,14 @@ import { useImageDimensions } from '@/hooks/useImageDimensions';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useProfile } from '@/hooks/useProfile';
 import { supabase } from '@/lib/supabase';
+import { updatePostDescription } from '@/services/postUpdates';
 import { getSavedPostIds, savePost, unsavePost } from '@/services/savedPosts';
 import { FurnitureImage, ViewType } from '@/types/furniture';
 import { Ionicons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const { width, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -31,6 +33,11 @@ export default function SwipeScreen() {
   const [loadingOwner, setLoadingOwner] = useState(false);
   const [savedPhotos, setSavedPhotos] = useState<Set<string>>(new Set());
   const [selectedPhotoDimensions, setSelectedPhotoDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editingDescription, setEditingDescription] = useState('');
+  const [isUpdatingDescription, setIsUpdatingDescription] = useState(false);
+  const descriptionInputRef = React.useRef<TextInput>(null);
+  const scrollViewRef = React.useRef<ScrollView>(null);
 
   // Load saved posts on mount
   useEffect(() => {
@@ -122,6 +129,8 @@ export default function SwipeScreen() {
     setTutorialPlan,
     isGeneratingPlan,
     handleGeneratePlan,
+    postDescription,
+    setPostDescription,
   } = useCameraActions({
     onImageAnalyzed: () => {}, // Can be used for additional callbacks if needed
     onFeedRefresh: fetchFeedPhotos,
@@ -134,10 +143,20 @@ export default function SwipeScreen() {
     }
   }, [permission, requestPermission]);
 
+  // Cache for profile lookups to reduce redundant queries
+  const profileCacheRef = React.useRef<Map<string, { username?: string; display_name?: string }>>(new Map());
+
   // Fetch photo owner and dimensions when photo is selected
   useEffect(() => {
     const fetchPhotoOwner = async () => {
       if (selectedPhoto?.user_id) {
+        // Check cache first to avoid redundant queries
+        const cached = profileCacheRef.current.get(selectedPhoto.user_id);
+        if (cached) {
+          setPhotoOwner(cached);
+          return;
+        }
+
         setLoadingOwner(true);
         try {
           const { data, error } = await supabase
@@ -150,6 +169,8 @@ export default function SwipeScreen() {
             console.error('Error fetching photo owner:', error);
             setPhotoOwner(null);
         } else {
+            // Cache the profile data
+            profileCacheRef.current.set(selectedPhoto.user_id, data);
             setPhotoOwner(data);
         }
         } catch (error) {
@@ -197,9 +218,12 @@ export default function SwipeScreen() {
       }
     };
 
-    fetchPhotoOwner();
-    loadPhotoDimensions();
-  }, [selectedPhoto, photoDimensions]);
+    if (selectedPhoto) {
+      fetchPhotoOwner();
+      loadPhotoDimensions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPhoto?.id, photoDimensions]);
 
   const handlePhotoPress = (photo: FurnitureImage) => {
     setSelectedPhoto(photo);
@@ -208,7 +232,58 @@ export default function SwipeScreen() {
   const handleClosePhotoDetail = () => {
     setSelectedPhoto(null);
     setPhotoOwner(null);
+    setIsEditingDescription(false);
+    setEditingDescription('');
   };
+
+  const handleStartEditDescription = () => {
+    if (selectedPhoto) {
+      setEditingDescription(selectedPhoto.description || '');
+      setIsEditingDescription(true);
+      // Scroll to description section and focus input after a short delay
+      setTimeout(() => {
+        descriptionInputRef.current?.focus();
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
+
+  const handleCancelEditDescription = () => {
+    setIsEditingDescription(false);
+    setEditingDescription('');
+  };
+
+  const handleSaveDescription = async () => {
+    if (!selectedPhoto || !user?.id) return;
+
+    setIsUpdatingDescription(true);
+    try {
+      const result = await updatePostDescription(
+        selectedPhoto.id,
+        editingDescription,
+        user.id
+      );
+
+      if (result.success) {
+        // Update the selected photo's description locally
+        setSelectedPhoto({
+          ...selectedPhoto,
+          description: editingDescription.trim() || undefined,
+        });
+        // Refresh feed to get updated data
+        fetchFeedPhotos();
+        setIsEditingDescription(false);
+        Alert.alert('Success', 'Description updated successfully');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to update description');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update description');
+    } finally {
+      setIsUpdatingDescription(false);
+    }
+  };
+
 
   const handleSignOut = async () => {
           Alert.alert(
@@ -299,7 +374,11 @@ export default function SwipeScreen() {
 
         {/* Photo Detail View */}
         {selectedPhoto && (
-          <View style={styles.photoDetailContainer}>
+          <KeyboardAvoidingView 
+            style={styles.photoDetailContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          >
             {/* Back button overlay on photo */}
             <TouchableOpacity 
               style={styles.photoDetailBackButton}
@@ -309,8 +388,10 @@ export default function SwipeScreen() {
             </TouchableOpacity>
             
             <ScrollView 
+              ref={scrollViewRef}
               style={styles.photoDetailScrollView}
               contentContainerStyle={styles.photoDetailContent}
+              keyboardShouldPersistTaps="handled"
             >
               <Image 
                 source={{ uri: selectedPhoto.public_url }} 
@@ -365,9 +446,89 @@ export default function SwipeScreen() {
                     </TouchableOpacity>
                 </View>
                 )}
+                
+                {/* Description Section */}
+                <View style={styles.photoDetailDescriptionSection}>
+                  {isEditingDescription ? (
+                    <View style={styles.photoDetailEditDescription}>
+                      <TextInput
+                        ref={descriptionInputRef}
+                        style={styles.photoDetailDescriptionInput}
+                        value={editingDescription}
+                        onChangeText={setEditingDescription}
+                        placeholder="Add a description..."
+                        placeholderTextColor="#999"
+                        multiline
+                        maxLength={500}
+                        editable={!isUpdatingDescription}
+                        onFocus={() => {
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollToEnd({ animated: true });
+                          }, 100);
+                        }}
+                      />
+                      <View style={styles.photoDetailEditActions}>
+                        <TouchableOpacity
+                          style={styles.photoDetailEditCancelButton}
+                          onPress={handleCancelEditDescription}
+                          disabled={isUpdatingDescription}
+                        >
+                          <Text style={styles.photoDetailEditCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.photoDetailEditSaveButton,
+                            isUpdatingDescription && styles.photoDetailEditSaveButtonDisabled
+                          ]}
+                          onPress={handleSaveDescription}
+                          disabled={isUpdatingDescription}
+                        >
+                          {isUpdatingDescription ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                          ) : (
+                            <Text style={styles.photoDetailEditSaveText}>Save</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.photoDetailDescriptionContainer}>
+                      {selectedPhoto.description ? (
+                        <Text style={styles.photoDetailDescriptionText}>
+                          {selectedPhoto.description}
+                        </Text>
+                      ) : (
+                        <Text style={styles.photoDetailDescriptionPlaceholder}>
+                          No description
+                        </Text>
+                      )}
+                      {selectedPhoto.user_id === user?.id && (
+                        <TouchableOpacity
+                          style={styles.photoDetailEditButton}
+                          onPress={handleStartEditDescription}
+                        >
+                          <Ionicons name="pencil-outline" size={18} color="#999" />
+                          <Text style={styles.photoDetailEditButtonText}>
+                            {selectedPhoto.description ? 'Edit' : 'Add description'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+                </View>
+
+                {/* Thread Section */}
+                <View style={styles.photoDetailThreadSection}>
+                  <PostThread
+                    postId={selectedPhoto.id}
+                    onCommentsUpdate={(comments) => {
+                      // Comments are managed by PostThread component
+                    }}
+                  />
+                </View>
               </View>
             </ScrollView>
-          </View>
+          </KeyboardAvoidingView>
         )}
 
         {/* Camera Pane */}
@@ -401,6 +562,8 @@ export default function SwipeScreen() {
             onBackFromCamera={goBackFromCamera}
             onGeneratePlan={handleGeneratePlan}
             isGeneratingPlan={isGeneratingPlan}
+            postDescription={postDescription}
+            onPostDescriptionChange={setPostDescription}
           />
         )}
 
@@ -430,8 +593,8 @@ export default function SwipeScreen() {
           />
         )}
           
-        {/* Fixed Bottom Navigation Bar - Hidden on Camera */}
-        {activeView !== 'camera' && (
+        {/* Fixed Bottom Navigation Bar - Hidden on Camera and Post Pages */}
+        {activeView !== 'camera' && !selectedPhoto && (
           <View style={styles.bottomNav}>
             <TouchableOpacity 
               style={styles.navButton} 
@@ -634,6 +797,95 @@ const styles = StyleSheet.create({
   photoDetailSaveButtonInline: {
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  photoDetailDescriptionSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  photoDetailDescriptionContainer: {
+    gap: 12,
+  },
+  photoDetailDescriptionText: {
+    fontSize: 16,
+    color: '#FFF',
+    lineHeight: 24,
+  },
+  photoDetailDescriptionPlaceholder: {
+    fontSize: 16,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  photoDetailEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  photoDetailEditButtonText: {
+    fontSize: 14,
+    color: '#999',
+  },
+  photoDetailEditDescription: {
+    gap: 12,
+  },
+  photoDetailDescriptionInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 16,
+    color: '#FFF',
+    fontSize: 16,
+    minHeight: 120,
+    maxHeight: 250,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  photoDetailEditActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  photoDetailEditCancelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  photoDetailEditCancelText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoDetailEditSaveButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+  },
+  photoDetailEditSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  photoDetailEditSaveText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  photoDetailThreadSection: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#333',
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
   },
   tutorialsOverlay: {
     position: 'absolute',
