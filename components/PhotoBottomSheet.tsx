@@ -60,8 +60,8 @@ export function PhotoBottomSheet({ onClose, samplePhotos, furnitureAnalysis, isA
     if (lowerItem.includes('drawer')) return '🗃️';
     // Stool
     if (lowerItem.includes('stool')) return '🪑';
-    // Bench
-    if (lowerItem.includes('bench')) return '🪑';
+    // Bench - no emoji (no specific bench emoji available)
+    if (lowerItem.includes('bench')) return '';
     // Default furniture emoji
     return '🪑';
   };

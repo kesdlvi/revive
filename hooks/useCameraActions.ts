@@ -80,111 +80,83 @@ export function useCameraActions({ onImageAnalyzed, onFeedRefresh, onNavigateToF
         setIsValidatingFurniture(false);
       }
     } else {
-      // Scan mode: validate first, then show analysis and bottom sheet
+      // Scan mode: show preview immediately, then validate and analyze in parallel
+      setPreviewUri(uri);
+      setCurrentPhotoUri(uri);
+      setShowPhotoSheet(true);
+      setSimilarPhotos([]); // Clear old similar photos immediately
+      
+      // Validate if it's a furniture item in the background (parallel with analysis)
       setIsValidatingFurniture(true);
+      const validationPromise = (async () => {
+        try {
+          const result = await identifyFurnitureSimple(uri);
+          const isValid = !result.item.toLowerCase().includes('not a furniture item');
+          setIsValidatingFurniture(false);
+          return isValid;
+        } catch (error: any) {
+          console.error('Error validating furniture:', error);
+          // On validation error, allow scan anyway (fail open)
+          setIsValidatingFurniture(false);
+          Alert.alert(
+            'Validation Error',
+            'Could not validate image. You can still scan, but make sure it\'s a furniture item.',
+            [{ text: 'OK' }]
+          );
+          return true; // Continue with scan
+        }
+      })();
+      
+      // Analyze the furniture with detailed analysis (includes item identification and repair issues)
+      setIsAnalyzing(true);
       try {
-        const result = await identifyFurnitureSimple(uri);
-        const isValid = !result.item.toLowerCase().includes('not a furniture item');
+        // Use detailed analysis to get both item identification and repair issues at once
+        const detailedResult = await analyzeFurniture(uri, 'detailed');
+        
+        // Check validation result
+        const isValid = await validationPromise;
         
         if (!isValid) {
+          // Validation failed - clear everything and show alert
+          setPreviewUri(null);
+          setCurrentPhotoUri(null);
+          setShowPhotoSheet(false);
+          setFurnitureAnalysis(null);
+          setIsAnalyzing(false);
+          
           Alert.alert(
             'Not a Furniture Item',
             'This image doesn\'t appear to be a furniture item. Please try again with a different image.',
-            [
-              {
-                text: 'OK',
-                onPress: () => {
-                  // Clear preview and go back to camera
-                  setPreviewUri(null);
-                  setCurrentPhotoUri(null);
-                  setShowPhotoSheet(false);
-                  setFurnitureAnalysis(null);
-                }
-              }
-            ]
+            [{ text: 'OK' }]
           );
-          setIsValidatingFurniture(false);
           return;
         }
         
-        // Valid furniture item - proceed with scan
-        setPreviewUri(uri);
-        setCurrentPhotoUri(uri);
-        setShowPhotoSheet(true);
-        setSimilarPhotos([]); // Clear old similar photos immediately
+        // Validation passed - set analysis results
+        setFurnitureAnalysis(detailedResult);
+        onImageAnalyzed(uri, detailedResult);
         
-        // Analyze the furniture with detailed analysis (includes item identification and repair issues)
-        setIsAnalyzing(true);
+        // Fetch similar photos for Inspo tab
+        setLoadingSimilar(true);
         try {
-          // Use detailed analysis to get both item identification and repair issues at once
-          const detailedResult = await analyzeFurniture(uri, 'detailed');
-          setFurnitureAnalysis(detailedResult);
-          onImageAnalyzed(uri, detailedResult);
-          
-          // Fetch similar photos for Inspo tab
-          setLoadingSimilar(true);
-          try {
-            const similar = await searchSimilarImages(detailedResult, 20);
-            setSimilarPhotos(similar);
-          } catch (similarError) {
-            console.error('Error fetching similar photos:', similarError);
-            setSimilarPhotos([]);
-          } finally {
-            setLoadingSimilar(false);
-          }
-        } catch (error: any) {
-          console.error('Analysis error:', error);
-          const errorMessage = error?.message || 'Failed to analyze furniture';
-          Alert.alert(
-            'Analysis Error',
-            errorMessage + '\n\nShowing photo anyway.',
-            [{ text: 'OK' }]
-          );
+          const similar = await searchSimilarImages(detailedResult, 20);
+          setSimilarPhotos(similar);
+        } catch (similarError) {
+          console.error('Error fetching similar photos:', similarError);
+          setSimilarPhotos([]);
         } finally {
-          setIsAnalyzing(false);
+          setLoadingSimilar(false);
         }
       } catch (error: any) {
-        console.error('Error validating furniture:', error);
-        // On validation error, allow scan anyway (fail open)
+        console.error('Analysis error:', error);
+        const errorMessage = error?.message || 'Failed to analyze furniture';
         Alert.alert(
-          'Validation Error',
-          'Could not validate image. You can still scan, but make sure it\'s a furniture item.',
+          'Analysis Error',
+          errorMessage + '\n\nShowing photo anyway.',
           [{ text: 'OK' }]
         );
-        // Proceed with scan even if validation failed
-        setPreviewUri(uri);
-        setCurrentPhotoUri(uri);
-        setShowPhotoSheet(true);
-        setSimilarPhotos([]);
-        setIsAnalyzing(true);
-        try {
-          const detailedResult = await analyzeFurniture(uri, 'detailed');
-          setFurnitureAnalysis(detailedResult);
-          onImageAnalyzed(uri, detailedResult);
-          
-          setLoadingSimilar(true);
-          try {
-            const similar = await searchSimilarImages(detailedResult, 20);
-            setSimilarPhotos(similar);
-          } catch (similarError) {
-            console.error('Error fetching similar photos:', similarError);
-            setSimilarPhotos([]);
-          } finally {
-            setLoadingSimilar(false);
-          }
-        } catch (analysisError: any) {
-          console.error('Analysis error:', analysisError);
-          const errorMessage = analysisError?.message || 'Failed to analyze furniture';
-          Alert.alert(
-            'Analysis Error',
-            errorMessage + '\n\nShowing photo anyway.',
-            [{ text: 'OK' }]
-          );
-        } finally {
-          setIsAnalyzing(false);
-        }
       } finally {
-        setIsValidatingFurniture(false);
+        setIsAnalyzing(false);
       }
     }
   };
