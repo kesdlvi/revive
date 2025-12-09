@@ -394,7 +394,8 @@ export default function SwipeScreen() {
               ref={scrollViewRef}
               style={styles.photoDetailScrollView}
               contentContainerStyle={styles.photoDetailContent}
-              keyboardShouldPersistTaps="handled"
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
             >
               <Image 
                 source={{ uri: selectedPhoto.public_url }} 

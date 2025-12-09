@@ -38,7 +38,7 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
   }, [isExpanded, issue.id]);
 
   useEffect(() => {
-    if (!isReplying) return;
+    if (!isExpanded) return;
 
     const keyboardWillShow = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -61,7 +61,7 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
       keyboardWillShow.remove();
       keyboardWillHide.remove();
     };
-  }, [isReplying]);
+  }, [isExpanded]);
 
   const fetchComments = async () => {
     setLoading(true);
@@ -87,14 +87,62 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
         .order('created_at', { ascending: true });
 
       if (allError) {
-        // Silently handle expected cases: table doesn't exist, no comments, or join issues
-        // These are not errors - they're just empty states
-        setComments([]);
+        // Try fetching without profile join as fallback
+        const { data: commentsWithoutProfiles, error: simpleError } = await supabase
+          .from('issue_comments')
+          .select('id, issue_id, user_id, parent_comment_id, content, created_at')
+          .eq('issue_id', issue.id)
+          .order('created_at', { ascending: true });
+        
+        if (simpleError) {
+          setComments([]);
+          return;
+        }
+        
+        if (!commentsWithoutProfiles || commentsWithoutProfiles.length === 0) {
+          setComments([]);
+          return;
+        }
+        
+        // Build comments without profile data
+        const commentsMap = new Map<string, IssueComment>();
+        const rootComments: IssueComment[] = [];
+        
+        commentsWithoutProfiles.forEach((comment: any) => {
+          const commentObj: IssueComment = {
+            id: comment.id,
+            issue_id: comment.issue_id,
+            user_id: comment.user_id,
+            parent_comment_id: comment.parent_comment_id || undefined,
+            content: comment.content,
+            created_at: comment.created_at,
+            username: undefined,
+            display_name: undefined,
+            replies: [],
+          };
+          commentsMap.set(comment.id, commentObj);
+        });
+        
+        commentsMap.forEach((comment) => {
+          if (comment.parent_comment_id) {
+            const parent = commentsMap.get(comment.parent_comment_id);
+            if (parent) {
+              if (!parent.replies) parent.replies = [];
+              parent.replies.push(comment);
+            }
+          } else {
+            rootComments.push(comment);
+          }
+        });
+        
+        setComments(rootComments);
+        if (onCommentsUpdate) {
+          onCommentsUpdate(issue.id, rootComments);
+        }
         return;
       }
 
       if (!allComments || allComments.length === 0) {
-        // No comments is a valid state, not an error
         setComments([]);
         return;
       }
@@ -147,8 +195,7 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
         onCommentsUpdate(issue.id, rootComments);
       }
     } catch (error: any) {
-      // Silently handle any unexpected errors - empty comments is a valid fallback state
-      // No need to log or alert - the UI will just show "No comments yet"
+      // Silently handle errors - just show empty comments
       setComments([]);
     } finally {
       setLoading(false);
@@ -161,6 +208,14 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
     setSubmittingReply(true);
     try {
       const parentId = isReplying && replyingToComment ? replyingToComment.id : null;
+      const commentContent = replyText.trim();
+      
+      // Clear the input immediately for better UX
+      setReplyText('');
+      const wasReplying = isReplying;
+      const wasReplyingTo = replyingToComment;
+      setIsReplying(null);
+      setReplyingToComment(null);
       
       const { data, error } = await supabase
         .from('issue_comments')
@@ -168,21 +223,33 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
           issue_id: issue.id,
           user_id: user.id,
           parent_comment_id: parentId || null,
-          content: replyText.trim(),
+          content: commentContent,
         })
         .select('id, issue_id, user_id, parent_comment_id, content, created_at')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error adding comment:', error);
+        // Restore input on error
+        setReplyText(commentContent);
+        setIsReplying(wasReplying);
+        setReplyingToComment(wasReplyingTo);
+        throw error;
+      }
 
+      // Small delay to ensure database has updated
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Refresh comments
       await fetchComments();
-      setReplyText('');
-      setIsReplying(null);
-      setReplyingToComment(null);
+      
+      // Scroll to show the new comment after state updates
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
     } catch (error: any) {
       console.error('Error adding comment:', error);
-      Alert.alert('Error', 'Failed to add comment');
+      Alert.alert('Error', 'Failed to add comment. Please try again.');
     } finally {
       setSubmittingReply(false);
     }
@@ -359,13 +426,18 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
         </View>
       ) : (
         <>
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.commentsList}
-            contentContainerStyle={[styles.commentsListContent, { paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 20 }]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
-          >
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.commentsList}
+              contentContainerStyle={[
+                styles.commentsListContent,
+                keyboardHeight > 0 && { paddingBottom: 100 }
+              ]}
+              keyboardShouldPersistTaps="always"
+              keyboardDismissMode="none"
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
             {comments.length === 0 ? (
               <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
             ) : (
@@ -374,7 +446,7 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
           </ScrollView>
 
           {user && (
-            <View style={[styles.addCommentContainer, { marginBottom: keyboardHeight > 0 ? keyboardHeight : 0 }]}>
+            <View style={styles.addCommentContainer}>
               {isReplying && replyingToComment && (
                 <View style={styles.replyingToIndicator}>
                   <Text style={styles.replyingToText}>
@@ -391,7 +463,7 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
                   </TouchableOpacity>
                 </View>
               )}
-              <View style={styles.inputWrapper}>
+              <View style={styles.inputWrapper} pointerEvents="box-none">
                 <TextInput
                   ref={replyInputRef}
                   style={styles.addCommentInput}
@@ -402,10 +474,14 @@ export function IssueComments({ issue, postId, onCommentsUpdate }: IssueComments
                   multiline
                   maxLength={1000}
                   textAlignVertical="top"
+                  editable={true}
+                  keyboardType="default"
+                  returnKeyType="default"
+                  blurOnSubmit={false}
                   onFocus={() => {
                     setTimeout(() => {
                       scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 100);
+                    }, 300);
                   }}
                 />
                 <TouchableOpacity
